@@ -204,7 +204,7 @@ export default function Tracker() {
                 {time && (
                   <div style={{ fontSize: '12px', color: '#666' }}>{time}</div>
                 )}
-                {status === 'active' && (
+                {status === 'active' && stage.key !== 'completed' && (
                   <div style={{
                     fontSize: '12px',
                     color: '#e23744',

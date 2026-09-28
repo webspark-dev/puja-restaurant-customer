@@ -12,6 +12,7 @@ export default function Checkout() {
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
   const [devOtp, setDevOtp] = useState('');
+  const [testModeOtp, setTestModeOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -36,7 +37,9 @@ export default function Checkout() {
     setLoading(true);
     try {
       const res = await customerAPI.sendOtp(name.trim(), mobile);
+      setTestModeOtp(res.data.test_otp ? String(res.data.test_otp) : '');
       setDevOtp(res.data.dev_otp || '');
+      setOtp(res.data.test_otp ? String(res.data.test_otp) : '');
       setStep('otp');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to send OTP');
@@ -251,7 +254,21 @@ export default function Checkout() {
             📱 OTP sent to +91 {mobile}
           </div>
 
-          {devOtp && (
+          {testModeOtp && (
+            <div style={{
+              background: '#fef3c7',
+              borderLeft: '4px solid #f59e0b',
+              padding: '12px',
+              borderRadius: '8px',
+              marginBottom: '20px',
+              fontSize: '13px',
+              color: '#92400e'
+            }}>
+              ⚠️ <strong>Test Mode: Use OTP {testModeOtp}</strong>
+            </div>
+          )}
+
+          {!testModeOtp && devOtp && (
             <div style={{
               background: '#fef3c7',
               borderLeft: '4px solid #f59e0b',

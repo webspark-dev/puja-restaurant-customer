@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-export const RESTAURANT_ID = import.meta.env.VITE_RESTAURANT_ID;
+const API_URL = import.meta.env.VITE_API_URL || 'https://puja-restaurant-api.onrender.com';
+export const RESTAURANT_ID = import.meta.env.VITE_RESTAURANT_ID || 'b07af312-2c05-46c9-bf85-044e2620aacf';
 export const RESTAURANT_NAME = import.meta.env.VITE_RESTAURANT_NAME || 'Restaurant';
 
 const api = axios.create({

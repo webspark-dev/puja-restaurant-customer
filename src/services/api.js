@@ -104,11 +104,14 @@ export const orderAPI = {
 };
 
 // ============================================
+//// ============================================
 // PAYMENT API
 // ============================================
 export const paymentAPI = {
   initiateUPI: (orderId) =>
     api.post('/api/payment/initiate-upi', { order_id: orderId }),
   checkStatus: (orderId) =>
-    api.get(`/api/payment/status/${orderId}`)
+    api.get(`/api/payment/status/${orderId}`),
+  mockSuccess: (orderId) =>
+    api.post('/api/payment/mock-success', { order_id: orderId })
 };

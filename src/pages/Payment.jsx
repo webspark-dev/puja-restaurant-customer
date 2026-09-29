@@ -17,7 +17,7 @@ export default function Payment() {
   // 🔑 Build Complete Order Payload
   // ============================================
   const buildOrderPayload = (paymentMethod) => {
-    // Customer info from localStorage (Checkout-এ সেভ করা)
+    // Customer info from localStorage (saved at Checkout)
     const customer_name =
       localStorage.getItem('customerName') ||
       localStorage.getItem('customer_name') ||
@@ -54,7 +54,7 @@ export default function Payment() {
       return null;
     }
 
-    // Build items array (compatible with backend)
+    // Build items array
     const items = cart.map(item => ({
       item_id: item.id || item.item_id,
       item_name: item.name || item.item_name,
@@ -87,7 +87,6 @@ export default function Payment() {
     try {
       const payload = buildOrderPayload(paymentMethod);
 
-      // If validation failed
       if (!payload) {
         setLoading(false);
         return;
@@ -99,14 +98,46 @@ export default function Payment() {
       const order = res.data.order;
 
       if (paymentMethod === 'cash') {
+        // ✅ Cash flow: Redirect to Tracker (cash pending view)
         clearCart();
-        // ✅ Redirect to Tracker (cash pending view)
         navigate(`/tracker/${order.id}`);
       } else {
-        // UPI — initiate payment
+        // ============================================
+        // 📱 UPI FLOW
+        // ============================================
         clearCart();
-        const payRes = await paymentAPI.initiateUPI(order.id);
-        window.location.href = payRes.data.payment_url || payRes.data.redirect_url;
+
+        // 🎯 Detect dev/sandbox — use mock payment directly
+        const isSandbox =
+          import.meta.env.DEV ||
+          import.meta.env.VITE_ENV === 'sandbox' ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname.includes('vercel.app'); // 🚧 For testing on live
+
+        if (isSandbox) {
+          // 🎯 Mock payment: mark order as paid directly
+          console.log('🎯 Mock payment mode — auto-confirming order');
+
+          try {
+            await paymentAPI.mockSuccess(order.id);
+            console.log('✅ Mock payment success');
+            navigate(`/tracker/${order.id}`);
+          } catch (mockErr) {
+            console.error('❌ Mock payment failed:', mockErr);
+            // Fallback: navigate to tracker anyway (order exists)
+            navigate(`/tracker/${order.id}`);
+          }
+        } else {
+          // Production UPI flow
+          const payRes = await paymentAPI.initiateUPI(order.id);
+          const redirectUrl = payRes.data.payment_url || payRes.data.redirect_url;
+
+          if (redirectUrl) {
+            window.location.href = redirectUrl;
+          } else {
+            navigate(`/tracker/${order.id}`);
+          }
+        }
       }
     } catch (err) {
       console.error('❌ Order create error:', err);
@@ -257,7 +288,7 @@ export default function Payment() {
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
             <div className="loader"></div>
             <p style={{ marginTop: '12px', fontSize: '13px', color: '#666' }}>
-              Creating order...
+              {loading ? 'Creating order...' : ''}
             </p>
           </div>
         )}

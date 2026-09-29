@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://puja-restaurant-api.onrender.com';
-export const RESTAURANT_ID = import.meta.env.VITE_RESTAURANT_ID || 'b07af312-2c05-46c9-bf85-044e2620aacf';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+export const RESTAURANT_ID = import.meta.env.VITE_RESTAURANT_ID;
 export const RESTAURANT_NAME = import.meta.env.VITE_RESTAURANT_NAME || 'Restaurant';
 
 const api = axios.create({
@@ -29,6 +29,9 @@ api.interceptors.response.use(
 
 export default api;
 
+// ============================================
+// MENU API
+// ============================================
 export const menuAPI = {
   getMenu: () => api.get(`/api/menu?restaurant_id=${RESTAURANT_ID}`),
   getItem: (id) => api.get(`/api/menu/item/${id}`),
@@ -36,6 +39,9 @@ export const menuAPI = {
   getFeatured: () => api.get(`/api/menu/featured?restaurant_id=${RESTAURANT_ID}`)
 };
 
+// ============================================
+// CUSTOMER API
+// ============================================
 export const customerAPI = {
   sendOtp: (name, mobile) =>
     api.post('/api/customer/send-otp', {
@@ -52,12 +58,54 @@ export const customerAPI = {
   me: () => api.get('/api/customer/me')
 };
 
+// ============================================
+// ORDER API
+// ============================================
 export const orderAPI = {
-  create: (data) =>
-    api.post('/api/order', { ...data, restaurant_id: RESTAURANT_ID }),
-  get: (orderId) => api.get(`/api/order/${orderId}`)
+  create: (data) => {
+    const customerName =
+      data.customer_name ||
+      data.name ||
+      localStorage.getItem('customerName') ||
+      'Guest';
+
+    const customerMobile =
+      data.customer_mobile ||
+      data.mobile ||
+      localStorage.getItem('customerMobile') ||
+      '';
+
+    const payload = {
+      ...data,
+      restaurant_id: RESTAURANT_ID,
+      customer_name: customerName,
+      customer_mobile: customerMobile
+    };
+
+    console.log('📤 Order payload:', payload);
+    return api.post('/api/order', payload);
+  },
+
+  get: (orderId) => api.get(`/api/order/${orderId}`),
+
+  customerHistory: (mobile, limit = 20) =>
+    api.get(
+      `/api/order/customer-history?mobile=${encodeURIComponent(mobile)}&restaurant_id=${RESTAURANT_ID}&limit=${limit}`
+    ),
+
+  getLive: () => api.get(`/api/order/live?restaurant_id=${RESTAURANT_ID}`),
+
+  settleCash: (orderId) => api.patch(`/api/order/${orderId}/settle-cash`),
+
+  printBill: (orderId) => api.patch(`/api/order/${orderId}/print-bill`),
+
+  updateStatus: (orderId, status) =>
+    api.patch(`/api/order/${orderId}/status`, { status })
 };
 
+// ============================================
+// PAYMENT API
+// ============================================
 export const paymentAPI = {
   initiateUPI: (orderId) =>
     api.post('/api/payment/initiate-upi', { order_id: orderId }),

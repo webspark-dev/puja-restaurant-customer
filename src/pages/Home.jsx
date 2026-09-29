@@ -1,219 +1,408 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { menuAPI, RESTAURANT_NAME } from '../services/api';
+import { orderAPI, RESTAURANT_NAME } from '../services/api';
+import { useCart } from '../context/CartContext';
 
 export default function Home() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [restaurant, setRestaurant] = useState(null);
-  const [orderingEnabled, setOrderingEnabled] = useState(true);
-  const [pauseMessage, setPauseMessage] = useState('');
-  const [notifyMobile, setNotifyMobile] = useState('');
-  const [notifySent, setNotifySent] = useState(false);
+  const { getItemCount } = useCart();
+  const [myOrders, setMyOrders] = useState([]);
+  const [showAllOrders, setShowAllOrders] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [customerName, setCustomerName] = useState('');
 
+  // ============================================
+  // Load customer info + orders
+  // ============================================
   useEffect(() => {
-    loadRestaurant();
+    const mobile = localStorage.getItem('customerMobile');
+    const name = localStorage.getItem('customerName') || '';
+    setCustomerName(name);
+
+    if (!mobile) return;
+
+    setLoadingOrders(true);
+    orderAPI
+      .customerHistory(mobile, 20)
+      .then((res) => {
+        setMyOrders(res.data.orders || []);
+      })
+      .catch((err) => {
+        console.error('Failed to load history:', err);
+      })
+      .finally(() => setLoadingOrders(false));
   }, []);
 
-  const loadRestaurant = async () => {
-    try {
-      const res = await menuAPI.getMenu();
-      setRestaurant(res.data.restaurant);
-      setOrderingEnabled(res.data.ordering_enabled);
-      setPauseMessage(res.data.pause_message || '');
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  // ============================================
+  // Helper: Status info
+  // ============================================
+  const getStatusInfo = (status) => {
+    const s = String(status || '').toUpperCase();
+    const map = {
+      PENDING_PAYMENT: { color: '#dc2626', bg: '#fee2e2', label: 'Pay at Counter', icon: '💵' },
+      CONFIRMED:       { color: '#b45309', bg: '#fef3c7', label: 'Confirmed',       icon: '✓' },
+      PREPARING:       { color: '#1e40af', bg: '#dbeafe', label: 'Preparing',       icon: '👨‍🍳' },
+      READY:           { color: '#16a34a', bg: '#dcfce7', label: 'Ready',           icon: '🔔' },
+      COMPLETED:       { color: '#374151', bg: '#e5e7eb', label: 'Completed',       icon: '✓' },
+      CANCELLED:       { color: '#6b7280', bg: '#f3f4f6', label: 'Cancelled',       icon: '✕' }
+    };
+    return map[s] || map.CONFIRMED;
   };
 
-  const handleStart = () => {
-    if (orderingEnabled) {
-      navigate('/menu');
-    }
+  const isActiveOrder = (status) => {
+    const s = String(status || '').toUpperCase();
+    return ['PENDING_PAYMENT', 'CONFIRMED', 'PREPARING', 'READY'].includes(s);
   };
 
-  const handleNotify = async () => {
-    if (!/^[6-9]\d{9}$/.test(notifyMobile)) {
-      alert('সঠিক ১০ ডিজিটের মোবাইল নম্বর দিন');
-      return;
-    }
-    // TODO: notifyAPI.add(notifyMobile)
-    setNotifySent(true);
-    setTimeout(() => setNotifySent(false), 3000);
-  };
+  // Sort: active first, then by date
+  const sortedOrders = [...myOrders].sort((a, b) => {
+    const aActive = isActiveOrder(a.status) ? 1 : 0;
+    const bActive = isActiveOrder(b.status) ? 1 : 0;
+    if (aActive !== bActive) return bActive - aActive;
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
 
-  if (loading) {
-    return (
-      <div style={{ padding: '100px 20px', textAlign: 'center' }}>
-        <div className="loader"></div>
-        <p style={{ marginTop: '16px', color: '#666' }}>Loading...</p>
-      </div>
-    );
-  }
+  const displayedOrders = showAllOrders ? sortedOrders : sortedOrders.slice(0, 3);
 
   return (
-    <div>
-      {/* Header */}
+    <div style={{ paddingBottom: '20px' }}>
+
+      {/* HERO SECTION */}
       <div style={{
-        background: 'linear-gradient(135deg, #e23744, #b8142a)',
+        background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
         color: '#fff',
-        padding: '40px 24px 32px',
+        padding: '40px 20px',
         textAlign: 'center'
       }}>
-        <div style={{ fontSize: '60px', marginBottom: '12px' }}>🍽️</div>
-        <h1 style={{ fontSize: '26px', fontWeight: '800', marginBottom: '6px' }}>
-          {restaurant?.name || RESTAURANT_NAME}
+        <div style={{ fontSize: '48px', marginBottom: '8px' }}>🍽️</div>
+        <h1 style={{
+          fontSize: '28px',
+          fontWeight: '900',
+          letterSpacing: '1px',
+          marginBottom: '4px'
+        }}>
+          {RESTAURANT_NAME || 'PUJA RESTAURANT'}
         </h1>
-        <p style={{ fontSize: '14px', opacity: 0.9 }}>
-          {restaurant?.tagline || 'Good Food • Happy Mood'}
+        <p style={{
+          fontSize: '13px',
+          opacity: 0.9,
+          marginBottom: '20px'
+        }}>
+          Good Food • Happy Mood
         </p>
-      </div>
 
-      {/* Restaurant Info */}
-      <div style={{ padding: '20px 24px' }}>
-        {restaurant?.address && (
-          <div style={{
-            background: '#fafafa',
-            borderRadius: '12px',
-            padding: '16px',
+        {customerName && (
+          <p style={{
+            fontSize: '14px',
+            opacity: 0.95,
             marginBottom: '16px'
           }}>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-              <span>📍</span>
-              <span style={{ fontSize: '13px', color: '#555' }}>
-                {restaurant.address}
-              </span>
-            </div>
-            {restaurant.phone && (
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                <span>📞</span>
-                <span style={{ fontSize: '13px', color: '#555' }}>
-                  {restaurant.phone}
-                </span>
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <span>{orderingEnabled ? '🟢' : '🔴'}</span>
-              <span style={{
-                fontSize: '13px',
-                fontWeight: '700',
-                color: orderingEnabled ? '#16a34a' : '#b8142a'
-              }}>
-                {orderingEnabled ? 'Open for Orders' : 'Currently Closed'}
-              </span>
-            </div>
-          </div>
+            👋 Welcome, <strong>{customerName}</strong>
+          </p>
         )}
 
-        {/* Ordering OFF State */}
-        {!orderingEnabled ? (
-          <div style={{
-            background: '#fef3c7',
-            borderLeft: '4px solid #f59e0b',
-            borderRadius: '12px',
-            padding: '16px',
-            marginBottom: '16px'
-          }}>
-            <h3 style={{
-              fontSize: '15px',
-              marginBottom: '6px',
-              color: '#92400e'
-            }}>
-              ⚠️ Ordering Paused
-            </h3>
-            <p style={{ fontSize: '13px', color: '#92400e', marginBottom: '16px' }}>
-              {pauseMessage || 'We will be back soon!'}
-            </p>
+        <button
+          onClick={() => navigate('/menu')}
+          style={{
+            background: '#fff',
+            color: '#dc2626',
+            border: 'none',
+            padding: '14px 32px',
+            borderRadius: '30px',
+            fontSize: '16px',
+            fontWeight: '800',
+            cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          🍴 Start Ordering →
+        </button>
+      </div>
 
-            {!notifySent ? (
-              <>
-                <input
-                  type="tel"
-                  placeholder="Your mobile number"
-                  value={notifyMobile}
-                  onChange={(e) => setNotifyMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    borderRadius: '10px',
-                    border: '1.5px solid #e5e5e5',
-                    fontSize: '14px',
-                    marginBottom: '10px'
-                  }}
-                />
-                <button
-                  onClick={handleNotify}
-                  className="btn btn-primary"
-                  style={{ background: '#f59e0b' }}
-                >
-                  🔔 Notify Me When Open
-                </button>
-              </>
-            ) : (
-              <div style={{
-                background: '#dcfce7',
-                color: '#16a34a',
-                padding: '12px',
-                borderRadius: '10px',
-                textAlign: 'center',
-                fontSize: '14px',
+      {/* FEATURE CARDS */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '12px',
+        padding: '20px'
+      }}>
+        {[
+          { icon: '⚡', title: 'Fast', sub: 'Service' },
+          { icon: '💳', title: 'UPI', sub: '& Cash' },
+          { icon: '🎫', title: 'Instant', sub: 'Token' }
+        ].map((item, i) => (
+          <div key={i} style={{
+            background: '#f9fafb',
+            borderRadius: '12px',
+            padding: '16px 12px',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '24px', marginBottom: '4px' }}>{item.icon}</div>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: '#1a1a1a' }}>
+              {item.title}
+            </div>
+            <div style={{ fontSize: '11px', color: '#666' }}>{item.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* MY ORDERS SECTION */}
+      {loadingOrders && (
+        <div style={{
+          padding: '30px 20px',
+          textAlign: 'center',
+          color: '#999'
+        }}>
+          <div className="loader"></div>
+          <p style={{ fontSize: '13px', marginTop: '8px' }}>Loading orders...</p>
+        </div>
+      )}
+
+      {!loadingOrders && myOrders.length > 0 && (
+        <div style={{ padding: '0 20px 20px' }}>
+
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '12px'
+          }}>
+            <h2 style={{
+              fontSize: '16px',
+              fontWeight: '800',
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: '#1a1a1a'
+            }}>
+              📋 My Orders
+              <span style={{
+                background: '#dc2626',
+                color: '#fff',
+                borderRadius: '20px',
+                padding: '2px 10px',
+                fontSize: '11px',
                 fontWeight: '700'
               }}>
-                ✅ We'll notify you!
-              </div>
+                {myOrders.length}
+              </span>
+            </h2>
+
+            {myOrders.length > 3 && (
+              <button
+                onClick={() => setShowAllOrders(!showAllOrders)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#dc2626',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                {showAllOrders ? 'Show Less' : 'View All →'}
+              </button>
             )}
           </div>
-        ) : (
-          /* Ordering ON */
-          <button
-            onClick={handleStart}
-            className="btn btn-primary"
-            style={{
-              padding: '18px',
-              fontSize: '16px',
-              marginBottom: '16px'
-            }}
-          >
-            🍽️ Start Ordering →
-          </button>
-        )}
 
-        {/* Info Cards */}
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <div style={{
-            flex: 1,
-            background: '#fafafa',
-            borderRadius: '12px',
-            padding: '16px',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '24px', marginBottom: '4px' }}>⚡</div>
-            <div style={{ fontSize: '12px', color: '#666' }}>Fast Service</div>
-          </div>
-          <div style={{
-            flex: 1,
-            background: '#fafafa',
-            borderRadius: '12px',
-            padding: '16px',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '24px', marginBottom: '4px' }}>💳</div>
-            <div style={{ fontSize: '12px', color: '#666' }}>UPI & Cash</div>
-          </div>
-          <div style={{
-            flex: 1,
-            background: '#fafafa',
-            borderRadius: '12px',
-            padding: '16px',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '24px', marginBottom: '4px' }}>🎫</div>
-            <div style={{ fontSize: '12px', color: '#666' }}>Instant Token</div>
-          </div>
+          {displayedOrders.map((order) => {
+            const info = getStatusInfo(order.status);
+            const isActive = isActiveOrder(order.status);
+            const displayTotal = order.total || order.total_amount || 0;
+            const displayToken = order.token || order.token_number || '—';
+            const itemCount = (order.items && order.items.length) || 0;
+
+            return (
+              <div
+                key={order.id}
+                onClick={() => navigate(`/tracker/${order.id}`)}
+                style={{
+                  background: '#fff',
+                  borderRadius: '14px',
+                  padding: '14px',
+                  marginBottom: '10px',
+                  borderLeft: `4px solid ${info.color}`,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  cursor: 'pointer',
+                  transition: 'transform 0.15s, box-shadow 0.15s'
+                }}
+              >
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  marginBottom: '8px'
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginBottom: '4px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <span style={{
+                        fontSize: '18px',
+                        fontWeight: '900',
+                        color: '#dc2626',
+                        letterSpacing: '1px'
+                      }}>
+                        {displayToken}
+                      </span>
+
+                      <span style={{
+                        background: info.bg,
+                        color: info.color,
+                        padding: '2px 8px',
+                        borderRadius: '20px',
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}>
+                        <span>{info.icon}</span>
+                        <span>{info.label}</span>
+                      </span>
+
+                      {isActive && (
+                        <span style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          background: '#16a34a',
+                          animation: 'pulse 1.5s infinite',
+                          display: 'inline-block'
+                        }} />
+                      )}
+                    </div>
+
+                    <div style={{
+                      fontSize: '11px',
+                      color: '#666'
+                    }}>
+                      {new Date(order.created_at).toLocaleString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    textAlign: 'right',
+                    marginLeft: '12px'
+                  }}>
+                    <div style={{
+                      fontSize: '16px',
+                      fontWeight: '800',
+                      color: '#1a1a1a'
+                    }}>
+                      ₹{displayTotal}
+                    </div>
+                    <div style={{
+                      fontSize: '11px',
+                      color: '#666'
+                    }}>
+                      {order.order_type === 'dinein' ? '🍽️ Dine-in' : '🥡 Takeaway'}
+                    </div>
+                  </div>
+                </div>
+
+                {isActive && (order.tracking_enabled || order.payment_method !== 'cash') && (
+                  <div style={{
+                    display: 'flex',
+                    gap: '4px',
+                    marginTop: '10px',
+                    marginBottom: '8px'
+                  }}>
+                    {['CONFIRMED', 'PREPARING', 'READY', 'COMPLETED'].map((s, i) => {
+                      const statusOrder = ['CONFIRMED', 'PREPARING', 'READY', 'COMPLETED'];
+                      const currentIdx = statusOrder.indexOf(
+                        String(order.status).toUpperCase()
+                      );
+                      const isDone = i <= currentIdx;
+                      return (
+                        <div
+                          key={s}
+                          style={{
+                            flex: 1,
+                            height: '4px',
+                            borderRadius: '2px',
+                            background: isDone ? '#16a34a' : '#e5e7eb',
+                            transition: 'background 0.3s'
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: '8px',
+                  fontSize: '12px',
+                  color: '#666'
+                }}>
+                  <span>
+                    {itemCount} item{itemCount !== 1 ? 's' : ''} •{' '}
+                    {order.payment_method === 'cash' ? '💵 Cash' : '📱 UPI'}
+                  </span>
+                  <span style={{
+                    color: info.color,
+                    fontWeight: '700'
+                  }}>
+                    {isActive ? 'Track →' : 'Details →'}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
+      )}
+
+      {/* Empty state */}
+      {!loadingOrders && myOrders.length === 0 && (
+        <div style={{
+          margin: '0 20px 20px',
+          background: '#f9fafb',
+          borderRadius: '14px',
+          padding: '30px 20px',
+          textAlign: 'center',
+          color: '#999',
+          fontSize: '13px'
+        }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>📭</div>
+          No orders yet. Start ordering!
+        </div>
+      )}
+
+      {/* INFO SECTION */}
+      <div style={{
+        margin: '0 20px 20px',
+        background: '#f0f9ff',
+        borderLeft: '4px solid #0ea5e9',
+        padding: '14px',
+        borderRadius: '10px',
+        fontSize: '12px',
+        color: '#075985'
+      }}>
+        💡 <strong>Tip:</strong> আপনার অর্ডার এখানে সেভ থাকবে। ক্লিক করে ট্র্যাকিং দেখতে পারবেন।
       </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(1.2); }
+        }
+      `}</style>
     </div>
   );
 }

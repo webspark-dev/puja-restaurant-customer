@@ -41,16 +41,17 @@ export default function Home() {
   // Logout / Switch User
   // ============================================
   const handleLogout = () => {
-    localStorage.removeItem('customerToken');
-    localStorage.removeItem('customerName');
-    localStorage.removeItem('customerMobile');
-    setCustomerName('');
-    setCustomerMobile('');
-    setMyOrders([]);
-    setShowLogoutModal(false);
-    navigate('/checkout');
-  };
+  // Clear all customer data
+  localStorage.removeItem('customerToken');
+  localStorage.removeItem('customerName');
+  localStorage.removeItem('customerMobile');
 
+  // Close modal
+  setShowLogoutModal(false);
+
+  // 🎯 Force full page reload to home (avoids blank page)
+  window.location.href = '/';
+};
   const handleSwitchUser = () => {
     setShowLogoutModal(true);
   };

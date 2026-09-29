@@ -1,93 +1,161 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 
-const CartContext = createContext();
+const CartContext = createContext(null);
 
-export const useCart = () => useContext(CartContext);
-
+// ============================================
+// CartProvider
+// ============================================
 export function CartProvider({ children }) {
   const [cart, setCart] = useState(() => {
-    const saved = localStorage.getItem('cart');
-    return saved ? JSON.parse(saved) : [];
+    // Load from localStorage on init
+    try {
+      const saved = localStorage.getItem('cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
-  const [orderType, setOrderType] = useState('dinein');
+  const [orderType, setOrderType] = useState(() => {
+    return localStorage.getItem('orderType') || 'dinein';
+  });
 
+  // Persist cart to localStorage
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart));
+    try {
+      localStorage.setItem('cart', JSON.stringify(cart));
+    } catch (err) {
+      console.error('Failed to save cart:', err);
+    }
   }, [cart]);
 
-  const addItem = (item) => {
+  useEffect(() => {
+    localStorage.setItem('orderType', orderType);
+  }, [orderType]);
+
+  // ============================================
+  // Add item to cart
+  // ============================================
+  const addToCart = (item) => {
     setCart(prev => {
-      const existing = prev.find(i =>
-        i.id === item.id &&
-        i.variant_name === item.variant_name &&
-        i.spice_level === item.spice_level &&
-        JSON.stringify(i.addons) === JSON.stringify(item.addons) &&
-        i.special_note === item.special_note
+      // Check if same item + same variant exists
+      const existingIndex = prev.findIndex(
+        c => c.id === item.id && c.variant_name === item.variant_name
       );
 
-      if (existing) {
-        return prev.map(i =>
-          i === existing ? { ...i, quantity: i.quantity + item.quantity } : i
-        );
+      if (existingIndex > -1) {
+        // Update quantity
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: updated[existingIndex].quantity + (item.quantity || 1)
+        };
+        return updated;
       }
-      return [...prev, { ...item, quantity: item.quantity || 1 }];
+
+      // Add new item
+      return [
+        ...prev,
+        {
+          ...item,
+          quantity: item.quantity || 1,
+          variant_name: item.variant_name || null,
+          variant_price: item.variant_price || item.price,
+          price: item.variant_price || item.price
+        }
+      ];
     });
   };
 
-  const removeItem = (index) => {
+  // ============================================
+  // Remove item from cart
+  // ============================================
+  const removeFromCart = (index) => {
     setCart(prev => prev.filter((_, i) => i !== index));
   };
 
-  const updateQuantity = (index, qty) => {
-    if (qty <= 0) {
-      removeItem(index);
-      return;
-    }
-    setCart(prev => prev.map((item, i) =>
-      i === index ? { ...item, quantity: qty } : item
-    ));
+  // ============================================
+  // Update quantity
+  // ============================================
+  const updateQuantity = (index, quantity) => {
+    if (quantity < 1) return;
+    setCart(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], quantity };
+      return updated;
+    });
   };
 
+  // ============================================
+  // Clear cart
+  // ============================================
   const clearCart = () => {
     setCart([]);
     localStorage.removeItem('cart');
   };
 
-  const getSubtotal = () => {
+  // ============================================
+  // Get total items count
+  // ============================================
+  const getItemCount = () => {
+    return cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
+  };
+
+  // ============================================
+  // Get total price
+  // ============================================
+  const getTotal = () => {
     return cart.reduce((sum, item) => {
-      const itemPrice = item.price + (item.addons_total || 0);
-      return sum + (itemPrice * item.quantity);
+      const price = item.variant_price || item.price || 0;
+      return sum + (price * (item.quantity || 1));
     }, 0);
   };
 
-  const getGst = () => {
-    return Math.round(getSubtotal() * 0.05);
-  };
-
-  const getTotal = () => {
-    return getSubtotal() + getGst();
-  };
-
-  const getItemCount = () => {
-    return cart.reduce((sum, item) => sum + item.quantity, 0);
+  // ============================================
+  // Context value
+  // ============================================
+  const value = {
+    cart,
+    orderType,
+    setOrderType,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    getItemCount,
+    getTotal
   };
 
   return (
-    <CartContext.Provider value={{
-      cart,
-      orderType,
-      setOrderType,
-      addItem,
-      removeItem,
-      updateQuantity,
-      clearCart,
-      getSubtotal,
-      getGst,
-      getTotal,
-      getItemCount
-    }}>
+    <CartContext.Provider value={value}>
       {children}
     </CartContext.Provider>
   );
 }
+
+// ============================================
+// useCart Hook
+// ============================================
+export function useCart() {
+  const context = useContext(CartContext);
+
+  // Safe fallback if used outside provider
+  if (!context) {
+    console.warn('⚠️ useCart used outside CartProvider — using fallback');
+    return {
+      cart: [],
+      orderType: 'dinein',
+      setOrderType: () => {},
+      addToCart: () => {},
+      removeFromCart: () => {},
+      updateQuantity: () => {},
+      clearCart: () => {},
+      getItemCount: () => 0,
+      getTotal: () => 0
+    };
+  }
+
+  return context;
+}
+
+export default CartContext;

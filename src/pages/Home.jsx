@@ -5,9 +5,10 @@ import { useCart } from '../context/CartContext';
 
 export default function Home() {
   const navigate = useNavigate();
-  const { getItemCount } = useCart();
+  const cartContext = useCart();
+  const getItemCount = cartContext?.getItemCount || (() => 0);
+
   const [myOrders, setMyOrders] = useState([]);
-  const [showAllOrders, setShowAllOrders] = useState(false);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [customerName, setCustomerName] = useState('');
 
@@ -34,7 +35,7 @@ export default function Home() {
   }, []);
 
   // ============================================
-  // Helper: Status info
+  // Helpers
   // ============================================
   const getStatusInfo = (status) => {
     const s = String(status || '').toUpperCase();
@@ -54,7 +55,6 @@ export default function Home() {
     return ['PENDING_PAYMENT', 'CONFIRMED', 'PREPARING', 'READY'].includes(s);
   };
 
-  // Sort: active first, then by date
   const sortedOrders = [...myOrders].sort((a, b) => {
     const aActive = isActiveOrder(a.status) ? 1 : 0;
     const bActive = isActiveOrder(b.status) ? 1 : 0;
@@ -62,14 +62,12 @@ export default function Home() {
     return new Date(b.created_at) - new Date(a.created_at);
   });
 
-  const displayedOrders = showAllOrders ? sortedOrders : sortedOrders.slice(0, 3);
+  const displayedOrders = sortedOrders.slice(0, 3);
 
   return (
     <div style={{ paddingBottom: '20px' }}>
 
-      {/* ============================================
-          HERO SECTION
-         ============================================ */}
+      {/* HERO */}
       <div style={{
         background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
         color: '#fff',
@@ -103,7 +101,6 @@ export default function Home() {
           </p>
         )}
 
-        {/* Hero Action Buttons */}
         <div style={{
           display: 'flex',
           justifyContent: 'center',
@@ -121,16 +118,12 @@ export default function Home() {
               fontSize: '16px',
               fontWeight: '800',
               cursor: 'pointer',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px'
+              boxShadow: '0 4px 16px rgba(0,0,0,0.2)'
             }}
           >
             🍴 Start Ordering →
           </button>
 
-          {/* 🆕 My Orders Button */}
           <button
             onClick={() => navigate('/my-orders')}
             style={{
@@ -141,11 +134,7 @@ export default function Home() {
               borderRadius: '30px',
               fontSize: '14px',
               fontWeight: '700',
-              cursor: 'pointer',
-              backdropFilter: 'blur(10px)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px'
+              cursor: 'pointer'
             }}
           >
             📋 My Orders
@@ -153,9 +142,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ============================================
-          FEATURE CARDS
-         ============================================ */}
+      {/* FEATURES */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
@@ -182,9 +169,7 @@ export default function Home() {
         ))}
       </div>
 
-      {/* ============================================
-          🎯 MY ORDERS SECTION (Recent 3)
-         ============================================ */}
+      {/* MY ORDERS */}
       {loadingOrders && (
         <div style={{
           padding: '30px 20px',
@@ -198,8 +183,6 @@ export default function Home() {
 
       {!loadingOrders && myOrders.length > 0 && (
         <div style={{ padding: '0 20px 20px' }}>
-
-          {/* Section Header */}
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -243,7 +226,6 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Order Cards */}
           {displayedOrders.map((order) => {
             const info = getStatusInfo(order.status);
             const isActive = isActiveOrder(order.status);
@@ -262,8 +244,7 @@ export default function Home() {
                   marginBottom: '10px',
                   borderLeft: `4px solid ${info.color}`,
                   boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                  cursor: 'pointer',
-                  transition: 'transform 0.15s, box-shadow 0.15s'
+                  cursor: 'pointer'
                 }}
               >
                 <div style={{
@@ -283,43 +264,31 @@ export default function Home() {
                       <span style={{
                         fontSize: '18px',
                         fontWeight: '900',
-                        color: '#dc2626',
-                        letterSpacing: '1px'
+                        color: '#dc2626'
                       }}>
                         {displayToken}
                       </span>
-
                       <span style={{
                         background: info.bg,
                         color: info.color,
                         padding: '2px 8px',
                         borderRadius: '20px',
                         fontSize: '10px',
-                        fontWeight: '700',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px'
+                        fontWeight: '700'
                       }}>
-                        <span>{info.icon}</span>
-                        <span>{info.label}</span>
+                        {info.icon} {info.label}
                       </span>
-
                       {isActive && (
                         <span style={{
                           width: '8px',
                           height: '8px',
                           borderRadius: '50%',
                           background: '#16a34a',
-                          animation: 'pulse 1.5s infinite',
-                          display: 'inline-block'
+                          animation: 'pulse 1.5s infinite'
                         }} />
                       )}
                     </div>
-
-                    <div style={{
-                      fontSize: '11px',
-                      color: '#666'
-                    }}>
+                    <div style={{ fontSize: '11px', color: '#666' }}>
                       {new Date(order.created_at).toLocaleString('en-IN', {
                         day: '2-digit',
                         month: 'short',
@@ -328,11 +297,7 @@ export default function Home() {
                       })}
                     </div>
                   </div>
-
-                  <div style={{
-                    textAlign: 'right',
-                    marginLeft: '12px'
-                  }}>
+                  <div style={{ textAlign: 'right' }}>
                     <div style={{
                       fontSize: '16px',
                       fontWeight: '800',
@@ -340,61 +305,23 @@ export default function Home() {
                     }}>
                       ₹{displayTotal}
                     </div>
-                    <div style={{
-                      fontSize: '11px',
-                      color: '#666'
-                    }}>
-                      {order.order_type === 'dinein' ? '🍽️ Dine-in' : '🥡 Takeaway'}
+                    <div style={{ fontSize: '11px', color: '#666' }}>
+                      {itemCount} item{itemCount !== 1 ? 's' : ''}
                     </div>
                   </div>
                 </div>
 
-                {/* Mini Progress */}
-                {isActive && (order.tracking_enabled || order.payment_method !== 'cash') && (
-                  <div style={{
-                    display: 'flex',
-                    gap: '4px',
-                    marginTop: '10px',
-                    marginBottom: '8px'
-                  }}>
-                    {['CONFIRMED', 'PREPARING', 'READY', 'COMPLETED'].map((s, i) => {
-                      const statusOrder = ['CONFIRMED', 'PREPARING', 'READY', 'COMPLETED'];
-                      const currentIdx = statusOrder.indexOf(
-                        String(order.status).toUpperCase()
-                      );
-                      const isDone = i <= currentIdx;
-                      return (
-                        <div
-                          key={s}
-                          style={{
-                            flex: 1,
-                            height: '4px',
-                            borderRadius: '2px',
-                            background: isDone ? '#16a34a' : '#e5e7eb',
-                            transition: 'background 0.3s'
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginTop: '8px',
                   fontSize: '12px',
-                  color: '#666'
+                  color: '#666',
+                  marginTop: '8px'
                 }}>
                   <span>
-                    {itemCount} item{itemCount !== 1 ? 's' : ''} •{' '}
                     {order.payment_method === 'cash' ? '💵 Cash' : '📱 UPI'}
                   </span>
-                  <span style={{
-                    color: info.color,
-                    fontWeight: '700'
-                  }}>
+                  <span style={{ color: info.color, fontWeight: '700' }}>
                     {isActive ? 'Track →' : 'Details →'}
                   </span>
                 </div>
@@ -402,7 +329,6 @@ export default function Home() {
             );
           })}
 
-          {/* View All Button */}
           {myOrders.length > 3 && (
             <button
               onClick={() => navigate('/my-orders')}
@@ -425,7 +351,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Empty state */}
       {!loadingOrders && myOrders.length === 0 && (
         <div style={{
           margin: '0 20px 20px',
@@ -441,9 +366,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* ============================================
-          INFO SECTION
-         ============================================ */}
+      {/* INFO */}
       <div style={{
         margin: '0 20px 20px',
         background: '#f0f9ff',

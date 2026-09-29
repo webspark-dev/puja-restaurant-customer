@@ -11,6 +11,8 @@ export default function Home() {
   const [myOrders, setMyOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [customerName, setCustomerName] = useState('');
+  const [customerMobile, setCustomerMobile] = useState('');
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // ============================================
   // Load customer info + orders
@@ -19,6 +21,7 @@ export default function Home() {
     const mobile = localStorage.getItem('customerMobile');
     const name = localStorage.getItem('customerName') || '';
     setCustomerName(name);
+    setCustomerMobile(mobile || '');
 
     if (!mobile) return;
 
@@ -33,6 +36,24 @@ export default function Home() {
       })
       .finally(() => setLoadingOrders(false));
   }, []);
+
+  // ============================================
+  // Logout / Switch User
+  // ============================================
+  const handleLogout = () => {
+    localStorage.removeItem('customerToken');
+    localStorage.removeItem('customerName');
+    localStorage.removeItem('customerMobile');
+    setCustomerName('');
+    setCustomerMobile('');
+    setMyOrders([]);
+    setShowLogoutModal(false);
+    navigate('/checkout');
+  };
+
+  const handleSwitchUser = () => {
+    setShowLogoutModal(true);
+  };
 
   // ============================================
   // Helpers
@@ -64,16 +85,50 @@ export default function Home() {
 
   const displayedOrders = sortedOrders.slice(0, 3);
 
+  // Mask mobile (show last 4 digits)
+  const maskedMobile = customerMobile
+    ? customerMobile.slice(0, 2) + 'XXXX' + customerMobile.slice(-2)
+    : '';
+
   return (
     <div style={{ paddingBottom: '20px' }}>
 
-      {/* HERO */}
+      {/* ============================================
+          HERO SECTION
+         ============================================ */}
       <div style={{
         background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
         color: '#fff',
         padding: '40px 20px',
-        textAlign: 'center'
+        textAlign: 'center',
+        position: 'relative'
       }}>
+
+        {/* 🆕 Logout Button (Top Right) */}
+        {customerName && (
+          <button
+            onClick={handleSwitchUser}
+            style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              background: 'rgba(255,255,255,0.2)',
+              color: '#fff',
+              border: '1px solid rgba(255,255,255,0.5)',
+              borderRadius: '20px',
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            🚪 Logout
+          </button>
+        )}
+
         <div style={{ fontSize: '48px', marginBottom: '8px' }}>🍽️</div>
         <h1 style={{
           fontSize: '28px',
@@ -91,14 +146,23 @@ export default function Home() {
           Good Food • Happy Mood
         </p>
 
+        {/* 🆕 Welcome with masked mobile */}
         {customerName && (
-          <p style={{
-            fontSize: '14px',
-            opacity: 0.95,
+          <div style={{
+            display: 'inline-block',
+            background: 'rgba(255,255,255,0.15)',
+            padding: '8px 16px',
+            borderRadius: '20px',
+            fontSize: '13px',
             marginBottom: '16px'
           }}>
             👋 Welcome, <strong>{customerName}</strong>
-          </p>
+            {maskedMobile && (
+              <span style={{ opacity: 0.85, marginLeft: '6px' }}>
+                ({maskedMobile})
+              </span>
+            )}
+          </div>
         )}
 
         <div style={{
@@ -142,7 +206,9 @@ export default function Home() {
         </div>
       </div>
 
-      {/* FEATURES */}
+      {/* ============================================
+          FEATURES
+         ============================================ */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
@@ -169,7 +235,9 @@ export default function Home() {
         ))}
       </div>
 
-      {/* MY ORDERS */}
+      {/* ============================================
+          MY ORDERS
+         ============================================ */}
       {loadingOrders && (
         <div style={{
           padding: '30px 20px',
@@ -366,7 +434,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* INFO */}
+      {/* ============================================
+          INFO
+         ============================================ */}
       <div style={{
         margin: '0 20px 20px',
         background: '#f0f9ff',
@@ -380,10 +450,146 @@ export default function Home() {
         "📋 My Orders" ক্লিক করে সব order দেখতে ও bill print করতে পারবেন।
       </div>
 
+      {/* ============================================
+          🆕 LOGOUT CONFIRM MODAL
+         ============================================ */}
+      {showLogoutModal && (
+        <div
+          onClick={() => setShowLogoutModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 3000,
+            padding: '20px',
+            animation: 'fadeIn 0.15s ease-out'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              borderRadius: '20px',
+              maxWidth: '400px',
+              width: '100%',
+              padding: '28px 24px 24px',
+              textAlign: 'center',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              animation: 'modalIn 0.25s ease-out'
+            }}
+          >
+            <div style={{
+              width: '72px',
+              height: '72px',
+              margin: '0 auto 16px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '32px'
+            }}>
+              🚪
+            </div>
+
+            <h2 style={{
+              fontSize: '20px',
+              fontWeight: '800',
+              color: '#1a1a1a',
+              marginBottom: '8px'
+            }}>
+              Switch User?
+            </h2>
+
+            <p style={{
+              fontSize: '13px',
+              color: '#666',
+              lineHeight: 1.5,
+              marginBottom: '20px'
+            }}>
+              আপনি কি <strong>{customerName}</strong>-এর অ্যাকাউন্ট থেকে Logout করতে চান?
+            </p>
+
+            <div style={{
+              background: '#f9fafb',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              marginBottom: '20px',
+              textAlign: 'left',
+              fontSize: '13px'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: '6px'
+              }}>
+                <span style={{ color: '#666' }}>Name</span>
+                <span style={{ fontWeight: '700' }}>{customerName}</span>
+              </div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between'
+              }}>
+                <span style={{ color: '#666' }}>Mobile</span>
+                <span style={{ fontWeight: '700' }}>{maskedMobile}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '14px',
+                  background: '#f0f0f0',
+                  color: '#333',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                ❌ Cancel
+              </button>
+
+              <button
+                onClick={handleLogout}
+                style={{
+                  flex: 2,
+                  padding: '14px',
+                  background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.4)'
+                }}
+              >
+                🚪 Yes, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.4; transform: scale(1.2); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes modalIn {
+          from { opacity: 0; transform: scale(0.9) translateY(20px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
         }
       `}</style>
     </div>

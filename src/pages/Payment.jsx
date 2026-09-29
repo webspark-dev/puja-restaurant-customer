@@ -107,15 +107,14 @@ export default function Payment() {
         // ============================================
         clearCart();
 
-        // 🎯 Detect dev/sandbox — use mock payment directly
+        // 🎯 Use mock payment for sandbox/development
         const isSandbox =
           import.meta.env.DEV ||
           import.meta.env.VITE_ENV === 'sandbox' ||
           window.location.hostname === 'localhost' ||
-          window.location.hostname.includes('vercel.app'); // 🚧 For testing on live
+          window.location.hostname.includes('vercel.app');
 
         if (isSandbox) {
-          // 🎯 Mock payment: mark order as paid directly
           console.log('🎯 Mock payment mode — auto-confirming order');
 
           try {
@@ -124,7 +123,7 @@ export default function Payment() {
             navigate(`/tracker/${order.id}`);
           } catch (mockErr) {
             console.error('❌ Mock payment failed:', mockErr);
-            // Fallback: navigate to tracker anyway (order exists)
+            // Fallback: navigate to tracker anyway
             navigate(`/tracker/${order.id}`);
           }
         } else {
@@ -288,7 +287,7 @@ export default function Payment() {
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
             <div className="loader"></div>
             <p style={{ marginTop: '12px', fontSize: '13px', color: '#666' }}>
-              {loading ? 'Creating order...' : ''}
+              Processing...
             </p>
           </div>
         )}

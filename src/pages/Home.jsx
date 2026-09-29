@@ -67,7 +67,9 @@ export default function Home() {
   return (
     <div style={{ paddingBottom: '20px' }}>
 
-      {/* HERO SECTION */}
+      {/* ============================================
+          HERO SECTION
+         ============================================ */}
       <div style={{
         background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
         color: '#fff',
@@ -101,28 +103,59 @@ export default function Home() {
           </p>
         )}
 
-        <button
-          onClick={() => navigate('/menu')}
-          style={{
-            background: '#fff',
-            color: '#dc2626',
-            border: 'none',
-            padding: '14px 32px',
-            borderRadius: '30px',
-            fontSize: '16px',
-            fontWeight: '800',
-            cursor: 'pointer',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}
-        >
-          🍴 Start Ordering →
-        </button>
+        {/* Hero Action Buttons */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '10px',
+          flexWrap: 'wrap'
+        }}>
+          <button
+            onClick={() => navigate('/menu')}
+            style={{
+              background: '#fff',
+              color: '#dc2626',
+              border: 'none',
+              padding: '14px 32px',
+              borderRadius: '30px',
+              fontSize: '16px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            🍴 Start Ordering →
+          </button>
+
+          {/* 🆕 My Orders Button */}
+          <button
+            onClick={() => navigate('/my-orders')}
+            style={{
+              background: 'rgba(255,255,255,0.2)',
+              color: '#fff',
+              border: '2px solid rgba(255,255,255,0.6)',
+              padding: '12px 28px',
+              borderRadius: '30px',
+              fontSize: '14px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              backdropFilter: 'blur(10px)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            📋 My Orders
+          </button>
+        </div>
       </div>
 
-      {/* FEATURE CARDS */}
+      {/* ============================================
+          FEATURE CARDS
+         ============================================ */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
@@ -149,7 +182,9 @@ export default function Home() {
         ))}
       </div>
 
-      {/* MY ORDERS SECTION */}
+      {/* ============================================
+          🎯 MY ORDERS SECTION (Recent 3)
+         ============================================ */}
       {loadingOrders && (
         <div style={{
           padding: '30px 20px',
@@ -164,6 +199,7 @@ export default function Home() {
       {!loadingOrders && myOrders.length > 0 && (
         <div style={{ padding: '0 20px 20px' }}>
 
+          {/* Section Header */}
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -179,7 +215,7 @@ export default function Home() {
               gap: '8px',
               color: '#1a1a1a'
             }}>
-              📋 My Orders
+              📋 Recent Orders
               <span style={{
                 background: '#dc2626',
                 color: '#fff',
@@ -192,23 +228,22 @@ export default function Home() {
               </span>
             </h2>
 
-            {myOrders.length > 3 && (
-              <button
-                onClick={() => setShowAllOrders(!showAllOrders)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#dc2626',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
-                }}
-              >
-                {showAllOrders ? 'Show Less' : 'View All →'}
-              </button>
-            )}
+            <button
+              onClick={() => navigate('/my-orders')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#dc2626',
+                fontSize: '13px',
+                fontWeight: '700',
+                cursor: 'pointer'
+              }}
+            >
+              View All →
+            </button>
           </div>
 
+          {/* Order Cards */}
           {displayedOrders.map((order) => {
             const info = getStatusInfo(order.status);
             const isActive = isActiveOrder(order.status);
@@ -314,6 +349,7 @@ export default function Home() {
                   </div>
                 </div>
 
+                {/* Mini Progress */}
                 {isActive && (order.tracking_enabled || order.payment_method !== 'cash') && (
                   <div style={{
                     display: 'flex',
@@ -365,6 +401,27 @@ export default function Home() {
               </div>
             );
           })}
+
+          {/* View All Button */}
+          {myOrders.length > 3 && (
+            <button
+              onClick={() => navigate('/my-orders')}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: '#f9fafb',
+                color: '#dc2626',
+                border: '1px dashed #dc2626',
+                borderRadius: '12px',
+                fontSize: '13px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                marginTop: '4px'
+              }}
+            >
+              View All {myOrders.length} Orders →
+            </button>
+          )}
         </div>
       )}
 
@@ -384,7 +441,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* INFO SECTION */}
+      {/* ============================================
+          INFO SECTION
+         ============================================ */}
       <div style={{
         margin: '0 20px 20px',
         background: '#f0f9ff',
@@ -394,7 +453,8 @@ export default function Home() {
         fontSize: '12px',
         color: '#075985'
       }}>
-        💡 <strong>Tip:</strong> আপনার অর্ডার এখানে সেভ থাকবে। ক্লিক করে ট্র্যাকিং দেখতে পারবেন।
+        💡 <strong>Tip:</strong> আপনার অর্ডার এখানে সেভ থাকবে। 
+        "📋 My Orders" ক্লিক করে সব order দেখতে ও bill print করতে পারবেন।
       </div>
 
       <style>{`

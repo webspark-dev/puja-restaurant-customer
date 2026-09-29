@@ -1,35 +1,52 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { CartProvider } from './context/CartContext';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import Menu from './pages/Menu';
-import ItemDetails from './pages/ItemDetails';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import Payment from './pages/Payment';
+import Tracker from './pages/Tracker';
 import Success from './pages/Success';
 import CashPending from './pages/CashPending';
-import Tracker from './pages/Tracker';
+import ItemDetails from './pages/ItemDetails';
+import CustomerHistory from './pages/CustomerHistory';
 
 function App() {
   return (
-    <CartProvider>
-      <BrowserRouter>
-        <div className="app-container">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/menu" element={<Menu />} />
-            <Route path="/item/:id" element={<ItemDetails />} />
-            <Route path="/cart" element={<Cart />} />
-            <Route path="/checkout" element={<Checkout />} />
-            <Route path="/payment/:orderId" element={<Payment />} />
-<Route path="/payment/select" element={<Payment />} />
-            <Route path="/success" element={<Success />} />
-            <Route path="/cash-pending/:orderId" element={<CashPending />} />
-            <Route path="/tracker/:orderId" element={<Tracker />} />
-          </Routes>
-        </div>
-      </BrowserRouter>
-    </CartProvider>
+    <BrowserRouter>
+      <Routes>
+        {/* Home */}
+        <Route path="/" element={<Home />} />
+
+        {/* Menu */}
+        <Route path="/menu" element={<Menu />} />
+
+        {/* Item Details */}
+        <Route path="/item/:itemId" element={<ItemDetails />} />
+
+        {/* Cart */}
+        <Route path="/cart" element={<Cart />} />
+
+        {/* Checkout */}
+        <Route path="/checkout" element={<Checkout />} />
+
+        {/* Payment */}
+        <Route path="/payment/select" element={<Payment />} />
+        <Route path="/payment/:orderId" element={<Payment />} />
+
+        {/* Order Tracking */}
+        <Route path="/tracker/:orderId" element={<Tracker />} />
+        <Route path="/cash-pending/:orderId" element={<CashPending />} />
+
+        {/* Payment Success */}
+        <Route path="/success" element={<Success />} />
+
+        {/* 🆕 Customer Order History */}
+        <Route path="/my-orders" element={<CustomerHistory />} />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

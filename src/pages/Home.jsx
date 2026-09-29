@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { orderAPI, RESTAURANT_NAME } from '../services/api';
 import { useCart } from '../context/CartContext';
+import LoginModal from '../components/LoginModal';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -13,17 +14,21 @@ export default function Home() {
   const [customerName, setCustomerName] = useState('');
   const [customerMobile, setCustomerMobile] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // ============================================
   // Load customer info + orders
   // ============================================
-  useEffect(() => {
+  const loadData = () => {
     const mobile = localStorage.getItem('customerMobile');
     const name = localStorage.getItem('customerName') || '';
     setCustomerName(name);
     setCustomerMobile(mobile || '');
 
-    if (!mobile) return;
+    if (!mobile) {
+      setMyOrders([]);
+      return;
+    }
 
     setLoadingOrders(true);
     orderAPI
@@ -35,25 +40,34 @@ export default function Home() {
         console.error('Failed to load history:', err);
       })
       .finally(() => setLoadingOrders(false));
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   // ============================================
-  // Logout / Switch User
+  // Login Success Handler
+  // ============================================
+  const handleLoginSuccess = (user) => {
+    console.log('✅ Login successful:', user);
+    setShowLoginModal(false);
+    loadData(); // Reload orders for new user
+  };
+
+  // ============================================
+  // Logout — Stay on Home
   // ============================================
   const handleLogout = () => {
-  // Clear all customer data
-  localStorage.removeItem('customerToken');
-  localStorage.removeItem('customerName');
-  localStorage.removeItem('customerMobile');
-
-  // Close modal
-  setShowLogoutModal(false);
-
-  // 🎯 Force full page reload to home (avoids blank page)
-  window.location.href = '/';
-};
-  const handleSwitchUser = () => {
-    setShowLogoutModal(true);
+    localStorage.removeItem('customerToken');
+    localStorage.removeItem('customerName');
+    localStorage.removeItem('customerMobile');
+    setShowLogoutModal(false);
+    setCustomerName('');
+    setCustomerMobile('');
+    setMyOrders([]);
+    // Force reload to home (safe from blank page)
+    window.location.href = '/';
   };
 
   // ============================================
@@ -85,8 +99,8 @@ export default function Home() {
   });
 
   const displayedOrders = sortedOrders.slice(0, 3);
+  const isLoggedIn = !!customerMobile;
 
-  // Mask mobile (show last 4 digits)
   const maskedMobile = customerMobile
     ? customerMobile.slice(0, 2) + 'XXXX' + customerMobile.slice(-2)
     : '';
@@ -105,30 +119,74 @@ export default function Home() {
         position: 'relative'
       }}>
 
-        {/* 🆕 Logout Button (Top Right) */}
-        {customerName && (
-          <button
-            onClick={handleSwitchUser}
-            style={{
-              position: 'absolute',
-              top: '16px',
-              right: '16px',
-              background: 'rgba(255,255,255,0.2)',
-              color: '#fff',
-              border: '1px solid rgba(255,255,255,0.5)',
-              borderRadius: '20px',
-              padding: '6px 14px',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-          >
-            🚪 Logout
-          </button>
-        )}
+        {/* 🔐 Top Right — Login OR Logout Button */}
+        <div style={{
+          position: 'absolute',
+          top: '16px',
+          right: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          {isLoggedIn ? (
+            <>
+              {/* User Info */}
+              <div style={{
+                background: 'rgba(255,255,255,0.15)',
+                borderRadius: '20px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                backdropFilter: 'blur(10px)'
+              }}>
+                👤 {customerName}
+              </div>
+
+              {/* Logout Button */}
+              <button
+                onClick={() => setShowLogoutModal(true)}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.5)',
+                  borderRadius: '20px',
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                🚪 Logout
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setShowLoginModal(true)}
+              style={{
+                background: '#fff',
+                color: '#dc2626',
+                border: 'none',
+                borderRadius: '20px',
+                padding: '8px 18px',
+                fontSize: '13px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+              }}
+            >
+              🔐 Login
+            </button>
+          )}
+        </div>
 
         <div style={{ fontSize: '48px', marginBottom: '8px' }}>🍽️</div>
         <h1 style={{
@@ -147,8 +205,8 @@ export default function Home() {
           Good Food • Happy Mood
         </p>
 
-        {/* 🆕 Welcome with masked mobile */}
-        {customerName && (
+        {/* Welcome / Login Prompt */}
+        {isLoggedIn ? (
           <div style={{
             display: 'inline-block',
             background: 'rgba(255,255,255,0.15)',
@@ -157,12 +215,23 @@ export default function Home() {
             fontSize: '13px',
             marginBottom: '16px'
           }}>
-            👋 Welcome, <strong>{customerName}</strong>
+            👋 Welcome back, <strong>{customerName}</strong>
             {maskedMobile && (
               <span style={{ opacity: 0.85, marginLeft: '6px' }}>
                 ({maskedMobile})
               </span>
             )}
+          </div>
+        ) : (
+          <div style={{
+            display: 'inline-block',
+            background: 'rgba(255,255,255,0.15)',
+            padding: '8px 16px',
+            borderRadius: '20px',
+            fontSize: '13px',
+            marginBottom: '16px'
+          }}>
+            👋 Login করে অর্ডার হিস্ট্রি দেখুন
           </div>
         )}
 
@@ -189,21 +258,23 @@ export default function Home() {
             🍴 Start Ordering →
           </button>
 
-          <button
-            onClick={() => navigate('/my-orders')}
-            style={{
-              background: 'rgba(255,255,255,0.2)',
-              color: '#fff',
-              border: '2px solid rgba(255,255,255,0.6)',
-              padding: '12px 28px',
-              borderRadius: '30px',
-              fontSize: '14px',
-              fontWeight: '700',
-              cursor: 'pointer'
-            }}
-          >
-            📋 My Orders
-          </button>
+          {isLoggedIn && (
+            <button
+              onClick={() => navigate('/my-orders')}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                color: '#fff',
+                border: '2px solid rgba(255,255,255,0.6)',
+                padding: '12px 28px',
+                borderRadius: '30px',
+                fontSize: '14px',
+                fontWeight: '700',
+                cursor: 'pointer'
+              }}
+            >
+              📋 My Orders
+            </button>
+          )}
         </div>
       </div>
 
@@ -237,9 +308,9 @@ export default function Home() {
       </div>
 
       {/* ============================================
-          MY ORDERS
+          MY ORDERS (only if logged in)
          ============================================ */}
-      {loadingOrders && (
+      {isLoggedIn && loadingOrders && (
         <div style={{
           padding: '30px 20px',
           textAlign: 'center',
@@ -250,7 +321,7 @@ export default function Home() {
         </div>
       )}
 
-      {!loadingOrders && myOrders.length > 0 && (
+      {isLoggedIn && !loadingOrders && myOrders.length > 0 && (
         <div style={{ padding: '0 20px 20px' }}>
           <div style={{
             display: 'flex',
@@ -420,7 +491,7 @@ export default function Home() {
         </div>
       )}
 
-      {!loadingOrders && myOrders.length === 0 && (
+      {isLoggedIn && !loadingOrders && myOrders.length === 0 && (
         <div style={{
           margin: '0 20px 20px',
           background: '#f9fafb',
@@ -435,9 +506,53 @@ export default function Home() {
         </div>
       )}
 
-      {/* ============================================
-          INFO
-         ============================================ */}
+      {/* Not logged in — prompt */}
+      {!isLoggedIn && (
+        <div style={{
+          margin: '0 20px 20px',
+          background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+          border: '2px dashed #f59e0b',
+          borderRadius: '14px',
+          padding: '24px 20px',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '40px', marginBottom: '8px' }}>🔐</div>
+          <h3 style={{
+            fontSize: '16px',
+            fontWeight: '800',
+            color: '#92400e',
+            marginBottom: '6px'
+          }}>
+            Login করুন
+          </h3>
+          <p style={{
+            fontSize: '13px',
+            color: '#78350f',
+            lineHeight: 1.6,
+            marginBottom: '16px'
+          }}>
+            Name + Mobile দিয়ে Login করলে আপনার সব অর্ডার হিস্ট্রি দেখতে পাবেন, Bill Print করতে পারবেন।
+          </p>
+          <button
+            onClick={() => setShowLoginModal(true)}
+            style={{
+              padding: '12px 28px',
+              background: '#dc2626',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '25px',
+              fontSize: '14px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(220, 38, 38, 0.4)'
+            }}
+          >
+            🔐 Login Now
+          </button>
+        </div>
+      )}
+
+      {/* INFO */}
       <div style={{
         margin: '0 20px 20px',
         background: '#f0f9ff',
@@ -447,12 +562,20 @@ export default function Home() {
         fontSize: '12px',
         color: '#075985'
       }}>
-        💡 <strong>Tip:</strong> আপনার অর্ডার এখানে সেভ থাকবে। 
-        "📋 My Orders" ক্লিক করে সব order দেখতে ও bill print করতে পারবেন।
+        💡 <strong>Tip:</strong> Order করার আগে Login করলে সব অর্ডার হিস্ট্রি সেভ থাকবে।
       </div>
 
       {/* ============================================
-          🆕 LOGOUT CONFIRM MODAL
+          LOGIN MODAL
+         ============================================ */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onSuccess={handleLoginSuccess}
+      />
+
+      {/* ============================================
+          LOGOUT CONFIRM MODAL
          ============================================ */}
       {showLogoutModal && (
         <div
@@ -465,8 +588,7 @@ export default function Home() {
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 3000,
-            padding: '20px',
-            animation: 'fadeIn 0.15s ease-out'
+            padding: '20px'
           }}
         >
           <div
@@ -478,8 +600,7 @@ export default function Home() {
               width: '100%',
               padding: '28px 24px 24px',
               textAlign: 'center',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-              animation: 'modalIn 0.25s ease-out'
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
             }}
           >
             <div style={{
@@ -502,7 +623,7 @@ export default function Home() {
               color: '#1a1a1a',
               marginBottom: '8px'
             }}>
-              Switch User?
+              Logout করবেন?
             </h2>
 
             <p style={{
@@ -583,14 +704,6 @@ export default function Home() {
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.4; transform: scale(1.2); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes modalIn {
-          from { opacity: 0; transform: scale(0.9) translateY(20px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
         }
       `}</style>
     </div>

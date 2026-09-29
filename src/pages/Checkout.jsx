@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { customerAPI } from '../services/api';
+import LoginModal from '../components/LoginModal';
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -15,12 +16,16 @@ export default function Checkout() {
   const [testModeOtp, setTestModeOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Already logged in?
   const existingToken = localStorage.getItem('customerToken');
   const existingName = localStorage.getItem('customerName');
   const existingMobile = localStorage.getItem('customerMobile');
 
+  // ============================================
+  // Send OTP (inline flow)
+  // ============================================
   const handleSendOtp = async () => {
     setError('');
 
@@ -48,6 +53,9 @@ export default function Checkout() {
     }
   };
 
+  // ============================================
+  // Verify OTP
+  // ============================================
   const handleVerifyOtp = async () => {
     setError('');
 
@@ -75,6 +83,15 @@ export default function Checkout() {
     navigate('/payment/select');
   };
 
+  // ============================================
+  // Login Modal Success
+  // ============================================
+  const handleLoginSuccess = () => {
+    setShowLoginModal(false);
+    // Reload to pick up new login state
+    window.location.reload();
+  };
+
   if (cart.length === 0) {
     navigate('/cart');
     return null;
@@ -83,7 +100,9 @@ export default function Checkout() {
   return (
     <div style={{ paddingBottom: '120px' }}>
 
-      {/* Header */}
+      {/* ============================================
+          Header with Login Button
+         ============================================ */}
       <div style={{
         background: '#fff',
         padding: '16px 20px',
@@ -94,16 +113,65 @@ export default function Checkout() {
       }}>
         <button
           onClick={() => step === 'otp' ? setStep('details') : navigate('/cart')}
-          style={{ background: 'none', fontSize: '20px' }}
+          style={{ background: 'none', fontSize: '20px', border: 'none', cursor: 'pointer' }}
         >
           ←
         </button>
-        <h1 style={{ fontSize: '18px', fontWeight: '800' }}>
+
+        <h1 style={{
+          fontSize: '18px',
+          fontWeight: '800',
+          margin: 0,
+          flex: 1
+        }}>
           {step === 'details' ? 'Checkout' : 'Verify OTP'}
         </h1>
+
+        {/* 🔐 Login / User Button */}
+        {existingToken && existingName ? (
+          <button
+            onClick={() => setShowLoginModal(true)}
+            style={{
+              background: '#dcfce7',
+              color: '#16a34a',
+              border: '1px solid #16a34a',
+              borderRadius: '20px',
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            👤 {existingName.length > 10
+              ? existingName.slice(0, 10) + '...'
+              : existingName}
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowLoginModal(true)}
+            style={{
+              background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '20px',
+              padding: '8px 16px',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
+            }}
+          >
+            🔐 Login
+          </button>
+        )}
       </div>
 
-      {/* Already Logged In */}
+      {/* ============================================
+          Already Logged In
+         ============================================ */}
       {existingToken && existingName && (
         <div style={{ padding: '20px' }}>
           <div style={{
@@ -113,10 +181,18 @@ export default function Checkout() {
             padding: '16px',
             marginBottom: '16px'
           }}>
-            <div style={{ fontSize: '13px', color: '#16a34a', marginBottom: '4px' }}>
+            <div style={{
+              fontSize: '13px',
+              color: '#16a34a',
+              marginBottom: '4px'
+            }}>
               ✓ Logged in as
             </div>
-            <div style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a1a' }}>
+            <div style={{
+              fontSize: '16px',
+              fontWeight: '700',
+              color: '#1a1a1a'
+            }}>
               {existingName}
             </div>
             <div style={{ fontSize: '13px', color: '#666' }}>
@@ -135,10 +211,12 @@ export default function Checkout() {
                 fontSize: '12px',
                 textDecoration: 'underline',
                 marginTop: '8px',
-                padding: 0
+                padding: 0,
+                border: 'none',
+                cursor: 'pointer'
               }}
             >
-              Change
+              Change User
             </button>
           </div>
 
@@ -151,9 +229,42 @@ export default function Checkout() {
         </div>
       )}
 
-      {/* Not Logged In — Details */}
+      {/* ============================================
+          Not Logged In — Details Form
+         ============================================ */}
       {!existingToken && step === 'details' && (
         <div style={{ padding: '20px' }}>
+
+          {/* Quick Login Hint */}
+          <div style={{
+            background: '#f0f9ff',
+            borderLeft: '4px solid #0ea5e9',
+            padding: '12px',
+            borderRadius: '8px',
+            marginBottom: '20px',
+            fontSize: '12px',
+            color: '#075985',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span>⚡ Quick login with OTP</span>
+            <button
+              onClick={() => setShowLoginModal(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#0284c7',
+                fontSize: '12px',
+                fontWeight: '700',
+                textDecoration: 'underline',
+                cursor: 'pointer'
+              }}
+            >
+              Open Modal →
+            </button>
+          </div>
+
           <div style={{ marginBottom: '20px' }}>
             <label style={{
               display: 'block',
@@ -174,7 +285,8 @@ export default function Checkout() {
                 padding: '14px',
                 border: '1.5px solid #e5e5e5',
                 borderRadius: '12px',
-                fontSize: '15px'
+                fontSize: '15px',
+                boxSizing: 'border-box'
               }}
             />
           </div>
@@ -210,7 +322,8 @@ export default function Checkout() {
                   padding: '14px 14px 14px 50px',
                   border: '1.5px solid #e5e5e5',
                   borderRadius: '12px',
-                  fontSize: '15px'
+                  fontSize: '15px',
+                  boxSizing: 'border-box'
                 }}
               />
             </div>
@@ -239,7 +352,9 @@ export default function Checkout() {
         </div>
       )}
 
-      {/* OTP Step */}
+      {/* ============================================
+          OTP Step
+         ============================================ */}
       {!existingToken && step === 'otp' && (
         <div style={{ padding: '20px' }}>
           <div style={{
@@ -306,7 +421,8 @@ export default function Checkout() {
               letterSpacing: '8px',
               textAlign: 'center',
               fontWeight: '700',
-              marginBottom: '16px'
+              marginBottom: '16px',
+              boxSizing: 'border-box'
             }}
           />
 
@@ -339,7 +455,9 @@ export default function Checkout() {
               color: '#666',
               fontSize: '13px',
               padding: '16px',
-              textDecoration: 'underline'
+              textDecoration: 'underline',
+              border: 'none',
+              cursor: 'pointer'
             }}
           >
             Change mobile number
@@ -347,7 +465,9 @@ export default function Checkout() {
         </div>
       )}
 
-      {/* Order Summary */}
+      {/* ============================================
+          Order Summary
+         ============================================ */}
       <div style={{
         padding: '20px',
         background: '#fafafa',
@@ -417,6 +537,15 @@ export default function Checkout() {
           </div>
         </div>
       </div>
+
+      {/* ============================================
+          Login Modal
+         ============================================ */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onSuccess={handleLoginSuccess}
+      />
     </div>
   );
 }

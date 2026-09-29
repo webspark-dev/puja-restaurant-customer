@@ -11,52 +11,118 @@ export default function Payment() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // If orderId exists in URL → this is UPI payment for existing order
   const isOrderPayment = !!orderId;
 
+  // ============================================
+  // 🔑 Build Complete Order Payload
+  // ============================================
+  const buildOrderPayload = (paymentMethod) => {
+    // Customer info from localStorage (Checkout-এ সেভ করা)
+    const customer_name =
+      localStorage.getItem('customerName') ||
+      localStorage.getItem('customer_name') ||
+      '';
+
+    const customer_mobile =
+      localStorage.getItem('customerMobile') ||
+      localStorage.getItem('customer_mobile') ||
+      '';
+
+    const total_amount = getTotal();
+
+    // Validation
+    if (!customer_name.trim()) {
+      alert('❌ Please enter your name. Redirecting to checkout...');
+      navigate('/checkout');
+      return null;
+    }
+
+    if (!customer_mobile || customer_mobile.length < 10) {
+      alert('❌ Please enter a valid mobile number. Redirecting to checkout...');
+      navigate('/checkout');
+      return null;
+    }
+
+    if (!cart || cart.length === 0) {
+      alert('❌ Your cart is empty');
+      navigate('/cart');
+      return null;
+    }
+
+    if (!total_amount || total_amount <= 0) {
+      alert('❌ Invalid total amount');
+      return null;
+    }
+
+    // Build items array (compatible with backend)
+    const items = cart.map(item => ({
+      item_id: item.id || item.item_id,
+      item_name: item.name || item.item_name,
+      quantity: item.quantity,
+      price: item.variant_price || item.price,
+      total: (item.variant_price || item.price) * item.quantity,
+      variant_name: item.variant_name || null,
+      spice_level: item.spice_level || null,
+      addons: item.addons || [],
+      special_note: item.special_note || ''
+    }));
+
+    return {
+      customer_name: customer_name.trim(),
+      customer_mobile: customer_mobile.trim(),
+      total_amount,
+      items,
+      payment_method: paymentMethod,
+      order_type: orderType || 'dinein'
+    };
+  };
+
+  // ============================================
+  // Create Order
+  // ============================================
   const createOrder = async (paymentMethod) => {
     setError('');
     setLoading(true);
 
     try {
-      const items = cart.map(item => ({
-        menu_item_id: item.id,
-        quantity: item.quantity,
-        variant_name: item.variant_name,
-        variant_price: item.variant_price,
-        spice_level: item.spice_level,
-        addons: item.addons || [],
-        addons_total: item.addons_total || 0,
-        special_note: item.special_note || ''
-      }));
+      const payload = buildOrderPayload(paymentMethod);
 
-      const res = await orderAPI.create({
-        order_type: orderType,
-        payment_method: paymentMethod,
-        items
-      });
+      // If validation failed
+      if (!payload) {
+        setLoading(false);
+        return;
+      }
 
+      console.log('📤 Order payload:', payload);
+
+      const res = await orderAPI.create(payload);
       const order = res.data.order;
 
       if (paymentMethod === 'cash') {
         clearCart();
-        navigate(`/cash-pending/${order.id}`);
+        // ✅ Redirect to Tracker (cash pending view)
+        navigate(`/tracker/${order.id}`);
       } else {
         // UPI — initiate payment
-        const payRes = await paymentAPI.initiateUPI(order.id);
         clearCart();
-        window.location.href = payRes.data.payment_url;
+        const payRes = await paymentAPI.initiateUPI(order.id);
+        window.location.href = payRes.data.payment_url || payRes.data.redirect_url;
       }
     } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.message || err.response?.data?.error || 'Failed to create order');
+      console.error('❌ Order create error:', err);
+      const errMsg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        'Failed to create order';
+      setError(errMsg);
       setLoading(false);
     }
   };
 
-  // ==========================
-  // Real order payment (UPI)
-  // ==========================
+  // ============================================
+  // UPI Redirect Loader
+  // ============================================
   if (isOrderPayment) {
     return (
       <div style={{ padding: '40px 20px', textAlign: 'center' }}>
@@ -68,9 +134,9 @@ export default function Payment() {
     );
   }
 
-  // ==========================
-  // Payment selection page
-  // ==========================
+  // ============================================
+  // Payment Selection UI
+  // ============================================
   return (
     <div style={{ paddingBottom: '20px' }}>
 
@@ -85,11 +151,11 @@ export default function Payment() {
       }}>
         <button
           onClick={() => navigate('/checkout')}
-          style={{ background: 'none', fontSize: '20px' }}
+          style={{ background: 'none', fontSize: '20px', border: 'none', cursor: 'pointer' }}
         >
           ←
         </button>
-        <h1 style={{ fontSize: '18px', fontWeight: '800' }}>Select Payment</h1>
+        <h1 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>Select Payment</h1>
       </div>
 
       {/* Amount */}
@@ -104,8 +170,12 @@ export default function Payment() {
         }}>
           ₹{getTotal()}
         </div>
+        <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+          {getItemCount()} item{getItemCount() > 1 ? 's' : ''}
+        </div>
       </div>
 
+      {/* Error */}
       {error && (
         <div style={{
           margin: '0 20px 16px',
@@ -136,7 +206,9 @@ export default function Payment() {
             alignItems: 'center',
             gap: '14px',
             marginBottom: '12px',
-            textAlign: 'left'
+            textAlign: 'left',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.6 : 1
           }}
         >
           <div style={{ fontSize: '32px' }}>📱</div>
@@ -164,7 +236,9 @@ export default function Payment() {
             display: 'flex',
             alignItems: 'center',
             gap: '14px',
-            textAlign: 'left'
+            textAlign: 'left',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.6 : 1
           }}
         >
           <div style={{ fontSize: '32px' }}>💵</div>

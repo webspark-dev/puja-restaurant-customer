@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { orderAPI, paymentAPI } from '../services/api';
-import { getSocket, connectSocket } from '../services/socket';
+import { orderAPI } from '../services/api';
+import { connectSocket } from '../services/socket';
 
 export default function Tracker() {
   const navigate = useNavigate();
@@ -11,8 +11,46 @@ export default function Tracker() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // ============================================
+  // Load Order
+  // ============================================
+  const loadOrder = useCallback(async () => {
+    const res = await orderAPI.get(orderId);
+    return res.data;
+  }, [orderId]);
+
+  const updateOrder = useCallback((data) => {
+    setOrder(data.order);
+    setItems(data.items || []);
+    setHistory(data.history || []);
+  }, []);
+
+  const handleLoadError = useCallback((err) => {
+    console.error(err);
+    alert('Order not found');
+    navigate('/');
+  }, [navigate]);
+
+  const refreshOrder = useCallback(() => {
+    return loadOrder()
+      .then(updateOrder)
+      .catch(handleLoadError)
+      .finally(() => setLoading(false));
+  }, [handleLoadError, loadOrder, updateOrder]);
+
+  // ============================================
+  // Initial Load + Socket.IO
+  // ============================================
   useEffect(() => {
-    loadOrder();
+    loadOrder()
+      .then((data) => {
+        updateOrder(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        handleLoadError(err);
+        setLoading(false);
+      });
 
     const socket = connectSocket();
     socket.emit('track:order', orderId);
@@ -20,49 +58,67 @@ export default function Tracker() {
     socket.on('order:status', (data) => {
       if (data.order_id === orderId) {
         setOrder(prev => prev ? { ...prev, status: data.status } : prev);
-        loadOrder(); // Reload for updated history
+        refreshOrder();
       }
     });
 
     socket.on('order:confirmed', (data) => {
       if (data.order_id === orderId) {
-        loadOrder();
+        refreshOrder();
       }
     });
+
+    // 🚨 NEW: Listen for cash settlement
+    socket.on('orderUpdate', (data) => {
+      if (data.orderId === orderId || data.order_id === orderId) {
+        refreshOrder();
+      }
+    });
+
+    // Polling fallback every 15s
+    const poll = setInterval(refreshOrder, 15000);
 
     return () => {
       socket.off('order:status');
       socket.off('order:confirmed');
+      socket.off('orderUpdate');
+      clearInterval(poll);
     };
-  }, [orderId]);
+  }, [handleLoadError, loadOrder, orderId, refreshOrder, updateOrder]);
 
-  const loadOrder = async () => {
-    try {
-      const res = await orderAPI.get(orderId);
-      setOrder(res.data.order);
-      setItems(res.data.items || []);
-      setHistory(res.data.history || []);
-    } catch (err) {
-      console.error(err);
-      alert('Order not found');
-      navigate('/');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // ============================================
+  // Stage Definitions (Fixed overlap)
+  // ============================================
   const stages = [
-    { key: 'order_placed', label: 'Order Placed', icon: '✓', match: ['PENDING_PAYMENT', 'CONFIRMED'] },
-    { key: 'confirmed', label: 'Confirmed', icon: '✓', match: ['CONFIRMED'] },
-    { key: 'preparing', label: 'Preparing', icon: '👨‍🍳', match: ['PREPARING'] },
-    { key: 'ready', label: 'Ready', icon: '🔔', match: ['READY'] },
-    { key: 'completed', label: 'Completed', icon: '✓', match: ['COMPLETED'] }
+    { key: 'order_placed', label: 'Order Placed', icon: '✓', match: ['PENDING_PAYMENT'] },
+    { key: 'confirmed',    label: 'Confirmed',    icon: '✓', match: ['CONFIRMED'] },
+    { key: 'preparing',    label: 'Preparing',    icon: '👨‍🍳', match: ['PREPARING'] },
+    { key: 'ready',        label: 'Ready',        icon: '🔔', match: ['READY'] },
+    { key: 'completed',    label: 'Completed',    icon: '✓', match: ['COMPLETED'] }
   ];
 
-  const getStageStatus = (stage, idx) => {
-    const currentStatus = order?.status;
-    const currentIdx = stages.findIndex(s => s.match.includes(currentStatus));
-    
+  const getCurrentIndex = () => {
+    if (!order?.status) return -1;
+
+    // Direct match
+    const idx = stages.findIndex(s => s.match.includes(order.status));
+    if (idx !== -1) return idx;
+
+    // Fallback: derive from status progression
+    const order_status_flow = ['PENDING_PAYMENT', 'CONFIRMED', 'PREPARING', 'READY', 'COMPLETED'];
+    const statusIdx = order_status_flow.indexOf(order.status);
+    if (statusIdx === -1) return 0;
+
+    if (statusIdx === 0) return 0;
+    if (statusIdx === 1) return 1;
+    if (statusIdx === 2) return 2;
+    if (statusIdx === 3) return 3;
+    if (statusIdx === 4) return 4;
+    return 0;
+  };
+
+  const getStageStatus = (idx) => {
+    const currentIdx = getCurrentIndex();
     if (idx < currentIdx) return 'done';
     if (idx === currentIdx) return 'active';
     return 'pending';
@@ -77,6 +133,25 @@ export default function Tracker() {
     });
   };
 
+  // ============================================
+  // 🚨 CASH LOGIC — Using is_cash_settled flag
+  // ============================================
+  const isCash = order?.payment_method === 'cash';
+
+  // New flag first, fallback to old logic for backward compatibility
+  const isCashPending = isCash && (
+    order?.is_cash_settled === false
+      ? true
+      : (order?.is_cash_settled === undefined
+          ? (order?.payment_status !== 'PAID' || !order?.bill_no)
+          : false)
+  );
+
+  const isCompleted = order?.status === 'COMPLETED';
+
+  // ============================================
+  // Loading State
+  // ============================================
   if (loading) {
     return (
       <div style={{ padding: '100px 20px', textAlign: 'center' }}>
@@ -86,6 +161,102 @@ export default function Tracker() {
     );
   }
 
+  // ============================================
+  // 🚨 CASH PENDING VIEW
+  // ============================================
+  if (isCashPending) {
+    const cancelled = order.status === 'CANCELLED';
+
+    return (
+      <div style={{ paddingBottom: '20px' }}>
+        {/* Header */}
+        <div style={{
+          background: '#fff',
+          padding: '16px 20px',
+          borderBottom: '1px solid #eee',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <button
+            onClick={() => navigate('/')}
+            style={{ background: 'none', fontSize: '20px' }}
+          >
+            ←
+          </button>
+          <h1 style={{ fontSize: '18px', fontWeight: '800' }}>Track Order</h1>
+        </div>
+
+        {/* Token */}
+        <div style={{
+          background: 'linear-gradient(135deg, #16a34a, #0e7a37)',
+          color: '#fff',
+          padding: '30px 20px',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '6px' }}>
+            🎫 YOUR TOKEN
+          </div>
+          <div style={{ fontSize: '48px', fontWeight: '900', letterSpacing: '3px' }}>
+            {order.token}
+          </div>
+        </div>
+
+        {/* Cash Pending Message */}
+        <div style={{ padding: '24px 20px' }}>
+          <div style={{
+            background: cancelled ? '#fee2e2' : '#fef3c7',
+            borderLeft: cancelled ? '4px solid #dc2626' : '4px solid #f59e0b',
+            padding: '16px',
+            borderRadius: '10px',
+            color: cancelled ? '#991b1b' : '#92400e'
+          }}>
+            <strong style={{ fontSize: '16px' }}>
+              {cancelled ? '❌ Order Cancelled' : '💵 Cash Payment Pending'}
+            </strong>
+            <p style={{ fontSize: '13px', lineHeight: 1.6, marginTop: '8px' }}>
+              {cancelled
+                ? 'This order was cancelled before the cash payment was confirmed.'
+                : 'Please show your token at the counter. Order tracking will start after staff confirms your cash payment and prints your bill.'}
+            </p>
+          </div>
+
+          {!cancelled && (
+            <>
+              <div style={{
+                marginTop: '20px',
+                padding: '16px',
+                background: '#f9fafb',
+                borderRadius: '10px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span style={{ fontSize: '14px', color: '#4b5563' }}>
+                  Amount to pay:
+                </span>
+                <strong style={{ fontSize: '20px', color: '#dc2626' }}>
+                  ₹{order.total}
+                </strong>
+              </div>
+
+              <button
+                onClick={refreshOrder}
+                className="btn btn-primary"
+                style={{ marginTop: '16px', width: '100%' }}
+              >
+                🔄 Check Payment Status
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================
+  // NORMAL TRACKING VIEW
+  // ============================================
   return (
     <div style={{ paddingBottom: '20px' }}>
 
@@ -141,14 +312,17 @@ export default function Tracker() {
         </h3>
 
         {stages.map((stage, idx) => {
-          const status = getStageStatus(stage, idx);
+          const status = getStageStatus(idx);
           const time = getHistoryTime(
             stage.key === 'order_placed' ? 'PENDING_PAYMENT' :
-            stage.key === 'confirmed' ? 'CONFIRMED' :
-            stage.key === 'preparing' ? 'PREPARING' :
-            stage.key === 'ready' ? 'READY' :
+            stage.key === 'confirmed'    ? 'CONFIRMED' :
+            stage.key === 'preparing'    ? 'PREPARING' :
+            stage.key === 'ready'        ? 'READY' :
             'COMPLETED'
           );
+
+          // ✅ Show "In progress..." ONLY on active stage AND NOT completed
+          const showInProgress = status === 'active' && !isCompleted;
 
           return (
             <div key={stage.key} style={{
@@ -175,7 +349,7 @@ export default function Tracker() {
                 height: '32px',
                 borderRadius: '50%',
                 background:
-                  status === 'done' ? '#16a34a' :
+                  status === 'done'   ? '#16a34a' :
                   status === 'active' ? '#e23744' :
                   '#e5e5e5',
                 color: '#fff',
@@ -186,7 +360,7 @@ export default function Tracker() {
                 fontWeight: '700',
                 flexShrink: 0,
                 zIndex: 1,
-                animation: status === 'active' ? 'pulse 1.5s infinite' : 'none'
+                animation: showInProgress ? 'pulse 1.5s infinite' : 'none'
               }}>
                 {status === 'done' ? '✓' : stage.icon}
               </div>
@@ -204,7 +378,7 @@ export default function Tracker() {
                 {time && (
                   <div style={{ fontSize: '12px', color: '#666' }}>{time}</div>
                 )}
-                {status === 'active' && stage.key !== 'completed' && (
+                {showInProgress && (
                   <div style={{
                     fontSize: '12px',
                     color: '#e23744',
@@ -218,13 +392,30 @@ export default function Tracker() {
             </div>
           );
         })}
+
+        {/* ✅ Completed Banner */}
+        {isCompleted && (
+          <div style={{
+            marginTop: '20px',
+            background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
+            borderRadius: '12px',
+            padding: '20px',
+            textAlign: 'center',
+            color: '#065f46'
+          }}>
+            <div style={{ fontSize: '32px', marginBottom: '6px' }}>🎉</div>
+            <strong style={{ fontSize: '16px', display: 'block', marginBottom: '4px' }}>
+              Order Completed!
+            </strong>
+            <p style={{ fontSize: '13px', margin: 0 }}>
+              Thank you for dining with us!
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Order Items */}
-      <div style={{
-        padding: '0 20px',
-        marginBottom: '16px'
-      }}>
+      <div style={{ padding: '0 20px', marginBottom: '16px' }}>
         <div style={{
           background: '#fafafa',
           borderRadius: '12px',
@@ -275,19 +466,37 @@ export default function Tracker() {
         }}>
           {order?.payment_status === 'PAID'
             ? '✅ Payment Confirmed'
-            : '⏳ Payment Pending — Please pay at counter'}
+            : '⏳ Payment Pending'}
         </div>
       </div>
 
-      {/* Download Bill (if PAID) */}
-      {order?.payment_status === 'PAID' && order?.bill_no && (
+      {/* ============================================
+          🚨 e-Bill Download — ONLY for online payments
+          Cash customers get printed bill from counter
+         ============================================ */}
+      {order?.payment_status === 'PAID' &&
+       order?.bill_no &&
+       !isCash && (
         <div style={{ padding: '16px 20px 0' }}>
           <button
             onClick={() => window.open(`/api/payment/bill-public?orderId=${orderId}`, '_blank')}
             className="btn btn-success"
+            style={{ width: '100%' }}
           >
             📥 Download e-Bill
           </button>
+        </div>
+      )}
+
+      {/* Cash bill note */}
+      {isCash && order?.payment_status === 'PAID' && (
+        <div style={{
+          padding: '16px 20px 0',
+          color: '#666',
+          fontSize: '13px',
+          textAlign: 'center'
+        }}>
+          ℹ️ Your cash bill was printed at the counter.
         </div>
       )}
     </div>

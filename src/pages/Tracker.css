@@ -1,0 +1,276 @@
+/* ============================================
+   frontend-customer/src/pages/Tracker.css
+   ============================================ */
+
+.tracker-container {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+.tracker-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.tracker-header h1 {
+  font-size: 24px;
+  color: #111827;
+  margin: 0 0 8px;
+}
+
+.token-number {
+  font-size: 16px;
+  color: #6b7280;
+}
+
+.token-number strong {
+  color: #dc2626;
+  font-size: 20px;
+  letter-spacing: 1px;
+}
+
+/* ---- Loading / Error ---- */
+.tracker-loading,
+.tracker-error {
+  text-align: center;
+  padding: 60px 20px;
+  font-size: 16px;
+  color: #6b7280;
+}
+
+.tracker-error { color: #dc2626; }
+
+/* ---- 🚨 CASH PENDING BANNER ---- */
+.cash-pending-banner {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 2px dashed #f59e0b;
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  margin: 20px 0;
+}
+
+.cash-pending-banner .cash-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.cash-pending-banner h3 {
+  color: #92400e;
+  margin: 8px 0;
+  font-size: 20px;
+}
+
+.cash-pending-banner p {
+  color: #78350f;
+  margin: 6px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.amount-due {
+  font-size: 18px !important;
+  margin-top: 12px !important;
+}
+
+.amount-due strong {
+  color: #dc2626;
+  font-size: 22px;
+}
+
+/* ---- Progress Bar ---- */
+.progress-container {
+  margin: 24px 0 32px;
+}
+
+.progress-bar {
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+/* ---- Steps ---- */
+.steps-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #f3f4f6;
+  transition: all 0.3s;
+}
+
+.step.done {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.step.current {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  box-shadow: 0 0 0 3px rgba(252, 211, 77, 0.2);
+}
+
+.step-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  background: #e5e7eb;
+  color: #9ca3af;
+}
+
+.step.done .step-icon {
+  background: #10b981;
+  color: white;
+}
+
+.step.current .step-icon {
+  background: #f59e0b;
+  color: white;
+  animation: pulse-icon 1.5s infinite;
+}
+
+@keyframes pulse-icon {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.1); }
+}
+
+.step-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.step.done .step-label  { color: #065f46; font-weight: 600; }
+.step.current .step-label { color: #92400e; font-weight: 700; }
+
+/* ---- In Progress ---- */
+.in-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #d97706;
+  font-weight: 600;
+  font-size: 15px;
+  margin: 20px 0;
+  padding: 12px;
+  background: #fffbeb;
+  border-radius: 10px;
+}
+
+.dot-pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #d97706;
+  animation: pulse-dot 1.5s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(1.4); }
+}
+
+/* ---- Completed Banner ---- */
+.completed-banner {
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  margin: 20px 0;
+  color: #065f46;
+}
+
+.completed-banner strong {
+  font-size: 20px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.completed-banner p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* ---- Order Details ---- */
+.order-details {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 20px 0;
+}
+
+.order-details h3 {
+  font-size: 15px;
+  color: #111827;
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.detail-row strong {
+  color: #111827;
+}
+
+/* ---- Bill Note ---- */
+.bill-note {
+  color: #6b7280;
+  font-size: 13px;
+  text-align: center;
+  padding: 12px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  line-height: 1.5;
+}
+
+/* ---- Download Bill ---- */
+.btn-download-bill {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: all 0.2s;
+}
+
+.btn-download-bill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+}

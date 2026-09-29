@@ -1,6 +1,5 @@
 // ============================================
 // frontend-customer/src/pages/Tracker.jsx
-// 3-Stage View: Pay at Counter → Paid → Full Tracking
 // ============================================
 
 import { useCallback, useEffect, useState } from 'react';
@@ -27,18 +26,15 @@ export default function Tracker() {
     setHistory(data.history || []);
   }, []);
 
-  const handleLoadError = useCallback((err) => {
-    console.error(err);
-    alert('Order not found');
-    navigate('/');
-  }, [navigate]);
-
   const refreshOrder = useCallback(() => {
     return loadOrder()
       .then(updateOrder)
-      .catch(handleLoadError)
+      .catch((err) => {
+        console.error(err);
+        navigate('/');
+      })
       .finally(() => setLoading(false));
-  }, [handleLoadError, loadOrder, updateOrder]);
+  }, [loadOrder, updateOrder, navigate]);
 
   useEffect(() => {
     loadOrder()
@@ -47,23 +43,13 @@ export default function Tracker() {
         setLoading(false);
       })
       .catch((err) => {
-        handleLoadError(err);
+        console.error(err);
+        navigate('/');
         setLoading(false);
       });
 
     const socket = connectSocket();
     socket.emit('track:order', orderId);
-
-    socket.on('order:status', (data) => {
-      if (data.order_id === orderId) {
-        setOrder(prev => prev ? { ...prev, status: data.status } : prev);
-        refreshOrder();
-      }
-    });
-
-    socket.on('order:confirmed', (data) => {
-      if (data.order_id === orderId) refreshOrder();
-    });
 
     socket.on('orderUpdate', (data) => {
       if (data.orderId === orderId || data.order_id === orderId) {
@@ -71,25 +57,26 @@ export default function Tracker() {
       }
     });
 
+    socket.on('order:status', (data) => {
+      if (data.order_id === orderId) refreshOrder();
+    });
+
     const poll = setInterval(refreshOrder, 15000);
 
     return () => {
-      socket.off('order:status');
-      socket.off('order:confirmed');
       socket.off('orderUpdate');
+      socket.off('order:status');
       clearInterval(poll);
     };
-  }, [handleLoadError, loadOrder, orderId, refreshOrder, updateOrder]);
+  }, [loadOrder, orderId, refreshOrder, updateOrder, navigate]);
 
-  // ============================================
   // Stage definitions
-  // ============================================
   const stages = [
-    { key: 'placed',    label: 'Order Placed', icon: '✓', match: ['placed'] },
-    { key: 'confirmed', label: 'Confirmed',    icon: '✓', match: ['confirmed'] },
+    { key: 'placed',    label: 'Order Placed', icon: '✓',   match: ['placed'] },
+    { key: 'confirmed', label: 'Confirmed',    icon: '✓',   match: ['confirmed'] },
     { key: 'preparing', label: 'Preparing',    icon: '👨‍🍳', match: ['preparing'] },
-    { key: 'ready',     label: 'Ready',        icon: '🔔', match: ['ready'] },
-    { key: 'completed', label: 'Completed',    icon: '✓', match: ['completed'] }
+    { key: 'ready',     label: 'Ready',        icon: '🔔',  match: ['ready'] },
+    { key: 'completed', label: 'Completed',    icon: '✓',   match: ['completed'] }
   ];
 
   const getCurrentIndex = () => {
@@ -114,16 +101,18 @@ export default function Tracker() {
   };
 
   // ============================================
-  // State Determination
+  // State logic (correct field names)
   // ============================================
   const isCash = order?.payment_method === 'cash';
-  const isCashPending = isCash && !order?.is_cash_settled;              // Stage 1
-  const waitingForBill = isCash && order?.is_cash_settled && !order?.tracking_enabled; // Stage 2
+  const isCashPending = isCash && !order?.is_cash_settled;
+  const waitingForBill = isCash && order?.is_cash_settled && !order?.tracking_enabled;
   const isCompleted = order?.status === 'completed';
 
-  // ============================================
-  // Loading
-  // ============================================
+  // Display values (fallbacks for old/new schema)
+  const displayToken = order?.token || order?.token_number || '—';
+  const displayTotal = order?.total || order?.total_amount || 0;
+  const displaySubtotal = order?.subtotal || displayTotal;
+
   if (loading) {
     return (
       <div style={{ padding: '100px 20px', textAlign: 'center' }}>
@@ -135,10 +124,7 @@ export default function Tracker() {
 
   if (!order) return null;
 
-  // ============================================
-  // Common Header + Token Card
-  // ============================================
-  const HeaderSection = () => (
+  const Header = () => (
     <div style={{
       background: '#fff',
       padding: '16px 20px',
@@ -150,9 +136,7 @@ export default function Tracker() {
       <button
         onClick={() => navigate('/')}
         style={{ background: 'none', fontSize: '20px', border: 'none', cursor: 'pointer' }}
-      >
-        ←
-      </button>
+      >←</button>
       <h1 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>Track Order</h1>
     </div>
   );
@@ -173,7 +157,7 @@ export default function Tracker() {
         letterSpacing: '4px',
         marginBottom: '6px'
       }}>
-        {order.token || order.token_number || '—'}
+        {displayToken}
       </div>
       <div style={{ fontSize: '12px', opacity: 0.9 }}>
         {order.order_type === 'dinein' ? '🍽️ Dine-in' : '🥡 Takeaway'}
@@ -182,14 +166,13 @@ export default function Tracker() {
   );
 
   // ============================================
-  // STAGE 1: Cash Pending — Pay at Counter
+  // STAGE 1: Cash Pending
   // ============================================
   if (isCashPending) {
     return (
       <div style={{ paddingBottom: '20px' }}>
-        <HeaderSection />
+        <Header />
         <TokenCard />
-
         <div style={{ padding: '24px 20px' }}>
           <div style={{
             background: '#fef3c7',
@@ -202,38 +185,27 @@ export default function Tracker() {
               💵 Cash Payment Pending
             </strong>
             <p style={{ fontSize: '13px', lineHeight: 1.6, margin: 0 }}>
-              Please pay <strong>₹{order.total || order.total_amount}</strong> at the counter.
+              Please pay <strong>₹{displayTotal}</strong> at the counter.
               Order will be placed after staff confirms your payment.
             </p>
           </div>
-
           <div style={{
             marginTop: '20px',
             padding: '16px',
             background: '#f9fafb',
             borderRadius: '10px',
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
+            justifyContent: 'space-between'
           }}>
-            <span style={{ fontSize: '14px', color: '#4b5563' }}>Amount to Pay:</span>
-            <strong style={{ fontSize: '22px', color: '#dc2626' }}>
-              ₹{order.total || order.total_amount}
-            </strong>
+            <span>Amount to Pay:</span>
+            <strong style={{ fontSize: '22px', color: '#dc2626' }}>₹{displayTotal}</strong>
           </div>
-
           <button
             onClick={refreshOrder}
             style={{
-              marginTop: '16px',
-              width: '100%',
-              padding: '14px',
-              background: '#dc2626',
-              color: 'white',
-              border: 'none',
-              borderRadius: '10px',
-              fontWeight: '600',
-              fontSize: '15px',
+              marginTop: '16px', width: '100%', padding: '14px',
+              background: '#dc2626', color: 'white', border: 'none',
+              borderRadius: '10px', fontWeight: '600', fontSize: '15px',
               cursor: 'pointer'
             }}
           >
@@ -245,14 +217,13 @@ export default function Tracker() {
   }
 
   // ============================================
-  // STAGE 2: Payment Confirmed — Waiting for Bill
+  // STAGE 2: Payment Confirmed, waiting for bill
   // ============================================
   if (waitingForBill) {
     return (
       <div style={{ paddingBottom: '20px' }}>
-        <HeaderSection />
+        <Header />
         <TokenCard />
-
         <div style={{ padding: '24px 20px' }}>
           <div style={{
             background: '#dcfce7',
@@ -265,36 +236,23 @@ export default function Tracker() {
               ✅ Payment Successful
             </strong>
             <p style={{ fontSize: '13px', lineHeight: 1.6, margin: 0 }}>
-              Order Placed! Your token is <strong>{order.token || order.token_number}</strong>.<br />
+              Order Placed! Your token is <strong>{displayToken}</strong>.<br />
               📋 Waiting for counter to print your bill...
             </p>
           </div>
-
           <p style={{
-            marginTop: '20px',
-            padding: '14px',
-            background: '#f9fafb',
-            borderRadius: '8px',
-            fontSize: '13px',
-            color: '#666',
-            textAlign: 'center',
-            lineHeight: 1.6
+            marginTop: '20px', padding: '14px', background: '#f9fafb',
+            borderRadius: '8px', fontSize: '13px', color: '#666',
+            textAlign: 'center'
           }}>
             📊 Tracking will start automatically after bill is printed.
           </p>
-
           <button
             onClick={refreshOrder}
             style={{
-              marginTop: '16px',
-              width: '100%',
-              padding: '14px',
-              background: '#16a34a',
-              color: 'white',
-              border: 'none',
-              borderRadius: '10px',
-              fontWeight: '600',
-              fontSize: '15px',
+              marginTop: '16px', width: '100%', padding: '14px',
+              background: '#16a34a', color: 'white', border: 'none',
+              borderRadius: '10px', fontWeight: '600', fontSize: '15px',
               cursor: 'pointer'
             }}
           >
@@ -310,10 +268,9 @@ export default function Tracker() {
   // ============================================
   return (
     <div style={{ paddingBottom: '20px' }}>
-      <HeaderSection />
+      <Header />
       <TokenCard />
 
-      {/* Status Timeline */}
       <div style={{ padding: '24px 20px' }}>
         <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '16px' }}>
           Order Status
@@ -326,42 +283,27 @@ export default function Tracker() {
 
           return (
             <div key={stage.key} style={{
-              display: 'flex',
-              gap: '14px',
+              display: 'flex', gap: '14px',
               paddingBottom: idx < stages.length - 1 ? '20px' : 0,
               position: 'relative'
             }}>
               {idx < stages.length - 1 && (
                 <div style={{
-                  position: 'absolute',
-                  left: '15px',
-                  top: '32px',
-                  width: '2px',
-                  height: 'calc(100% - 10px)',
+                  position: 'absolute', left: '15px', top: '32px',
+                  width: '2px', height: 'calc(100% - 10px)',
                   background: status === 'done' ? '#16a34a' : '#e5e5e5'
                 }} />
               )}
-
               <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                background:
-                  status === 'done'   ? '#16a34a' :
-                  status === 'active' ? '#e23744' :
-                  '#e5e5e5',
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '14px',
-                fontWeight: '700',
-                flexShrink: 0,
-                zIndex: 1
+                width: '32px', height: '32px', borderRadius: '50%',
+                background: status === 'done' ? '#16a34a' :
+                            status === 'active' ? '#e23744' : '#e5e5e5',
+                color: '#fff', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: '14px',
+                fontWeight: '700', flexShrink: 0, zIndex: 1
               }}>
                 {status === 'done' ? '✓' : stage.icon}
               </div>
-
               <div style={{ flex: 1, paddingTop: '4px' }}>
                 <div style={{
                   fontSize: '15px',
@@ -371,15 +313,11 @@ export default function Tracker() {
                 }}>
                   {stage.label}
                 </div>
-                {time && (
-                  <div style={{ fontSize: '12px', color: '#666' }}>{time}</div>
-                )}
+                {time && <div style={{ fontSize: '12px', color: '#666' }}>{time}</div>}
                 {showInProgress && (
                   <div style={{
-                    fontSize: '12px',
-                    color: '#e23744',
-                    fontWeight: '600',
-                    marginTop: '2px'
+                    fontSize: '12px', color: '#e23744',
+                    fontWeight: '600', marginTop: '2px'
                   }}>
                     ● In progress...
                   </div>
@@ -393,10 +331,8 @@ export default function Tracker() {
           <div style={{
             marginTop: '20px',
             background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
-            borderRadius: '12px',
-            padding: '20px',
-            textAlign: 'center',
-            color: '#065f46'
+            borderRadius: '12px', padding: '20px',
+            textAlign: 'center', color: '#065f46'
           }}>
             <div style={{ fontSize: '32px', marginBottom: '6px' }}>🎉</div>
             <strong style={{ fontSize: '16px', display: 'block', marginBottom: '4px' }}>
@@ -411,20 +347,14 @@ export default function Tracker() {
 
       {/* Items */}
       <div style={{ padding: '0 20px', marginBottom: '16px' }}>
-        <div style={{
-          background: '#fafafa',
-          borderRadius: '12px',
-          padding: '16px'
-        }}>
+        <div style={{ background: '#fafafa', borderRadius: '12px', padding: '16px' }}>
           <h3 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '12px' }}>
             Your Items
           </h3>
           {items.map((item, i) => (
             <div key={i} style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: '13px',
-              padding: '6px 0'
+              display: 'flex', justifyContent: 'space-between',
+              fontSize: '13px', padding: '6px 0'
             }}>
               <span>{item.item_name || item.name} × {item.quantity}</span>
               <span style={{ fontWeight: '600' }}>
@@ -433,43 +363,49 @@ export default function Tracker() {
             </div>
           ))}
           <div style={{
-            borderTop: '1px dashed #ccc',
-            marginTop: '10px',
-            paddingTop: '10px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontSize: '16px',
-            fontWeight: '800'
+            borderTop: '1px dashed #ccc', marginTop: '10px',
+            paddingTop: '10px', display: 'flex',
+            justifyContent: 'space-between', fontSize: '13px', color: '#666'
+          }}>
+            <span>Subtotal</span>
+            <span>₹{displaySubtotal}</span>
+          </div>
+          {order.gst > 0 && (
+            <div style={{
+              display: 'flex', justifyContent: 'space-between',
+              fontSize: '13px', color: '#666', paddingTop: '4px'
+            }}>
+              <span>GST</span>
+              <span>₹{order.gst}</span>
+            </div>
+          )}
+          <div style={{
+            borderTop: '2px solid #e5e5e5', marginTop: '10px',
+            paddingTop: '10px', display: 'flex',
+            justifyContent: 'space-between', fontSize: '16px', fontWeight: '800'
           }}>
             <span>Total</span>
-            <span>₹{order.total || order.total_amount}</span>
+            <span>₹{displayTotal}</span>
           </div>
         </div>
       </div>
 
-      {/* Payment Status */}
+      {/* Payment */}
       <div style={{ padding: '0 20px' }}>
         <div style={{
-          background: order?.payment_status === 'PAID' || order?.is_cash_settled ? '#dcfce7' : '#fef3c7',
-          borderLeft: order?.payment_status === 'PAID' || order?.is_cash_settled ? '4px solid #16a34a' : '4px solid #f59e0b',
-          padding: '12px',
-          borderRadius: '8px',
-          fontSize: '13px',
-          color: order?.payment_status === 'PAID' || order?.is_cash_settled ? '#166534' : '#92400e'
+          background: order?.is_cash_settled ? '#dcfce7' : '#fef3c7',
+          borderLeft: order?.is_cash_settled ? '4px solid #16a34a' : '4px solid #f59e0b',
+          padding: '12px', borderRadius: '8px', fontSize: '13px',
+          color: order?.is_cash_settled ? '#166534' : '#92400e'
         }}>
-          {order?.payment_status === 'PAID' || order?.is_cash_settled
-            ? '✅ Payment Confirmed'
-            : '⏳ Payment Pending'}
+          {order?.is_cash_settled ? '✅ Payment Confirmed' : '⏳ Payment Pending'}
         </div>
       </div>
 
-      {/* Cash Bill Note */}
       {isCash && order?.is_cash_settled && (
         <div style={{
-          padding: '16px 20px 0',
-          color: '#666',
-          fontSize: '13px',
-          textAlign: 'center'
+          padding: '16px 20px 0', color: '#666',
+          fontSize: '13px', textAlign: 'center'
         }}>
           ℹ️ Your cash bill was printed at the counter.
         </div>
